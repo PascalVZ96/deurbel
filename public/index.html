@@ -18,92 +18,35 @@
       padding: 24px;
     }
     .app { width: min(100%, 860px); }
-    .topbar {
-      display: flex;
-      align-items: end;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 14px;
-    }
-    h1 { margin: 0; font-size: clamp(26px, 5vw, 42px); }
-    .sub { margin-top: 5px; color: #aeb6c5; }
-    .badge {
-      padding: 8px 12px;
-      border-radius: 999px;
-      background: #242933;
-      color: #c6cedd;
-      font-size: 13px;
-      white-space: nowrap;
-    }
+    .topbar { display:flex; align-items:end; justify-content:space-between; gap:16px; margin-bottom:14px; }
+    h1 { margin:0; font-size:clamp(26px,5vw,42px); }
+    .sub { margin-top:5px; color:#aeb6c5; }
+    .badge { padding:8px 12px; border-radius:999px; background:#242933; color:#c6cedd; font-size:13px; white-space:nowrap; }
     .viewer {
-      position: relative;
-      min-height: 360px;
-      aspect-ratio: 16 / 10;
-      background: #050607;
-      border: 1px solid #2b313d;
-      border-radius: 18px;
-      overflow: hidden;
-      display: grid;
-      place-items: center;
-      box-shadow: 0 18px 60px rgba(0,0,0,.35);
+      position:relative; min-height:360px; aspect-ratio:16/10; background:#050607;
+      border:1px solid #2b313d; border-radius:18px; overflow:hidden; display:grid;
+      place-items:center; box-shadow:0 18px 60px rgba(0,0,0,.35);
     }
-    #stream {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      display: none;
-      background: #000;
-    }
-    .placeholder {
-      text-align: center;
-      padding: 24px;
-      color: #9ea8ba;
-    }
+    #stream { width:100%; height:100%; object-fit:contain; display:none; background:#000; }
+    .placeholder { text-align:center; padding:24px; color:#9ea8ba; }
     .placeholder strong { display:block; color:#fff; font-size:22px; margin-bottom:7px; }
-    .controls {
-      display: flex;
-      gap: 10px;
-      margin-top: 14px;
-      flex-wrap: wrap;
-    }
-    button {
-      border: 0;
-      border-radius: 12px;
-      padding: 13px 18px;
-      font: inherit;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    button:disabled { opacity: .45; cursor: not-allowed; }
-    #start { background: #fff; color: #101216; }
-    #stop { background: #2b3039; color: #fff; }
+    .controls { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+    button { border:0; border-radius:12px; padding:13px 18px; font:inherit; font-weight:700; cursor:pointer; }
+    button:disabled { opacity:.45; cursor:not-allowed; }
+    #start { background:#fff; color:#101216; }
+    #stop { background:#2b3039; color:#fff; }
     .details {
-      margin-top: 14px;
-      padding: 14px 16px;
-      border-radius: 14px;
-      background: #191d24;
-      border: 1px solid #282e38;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
-      gap: 12px;
-      font-size: 13px;
+      margin-top:14px; padding:14px 16px; border-radius:14px; background:#191d24;
+      border:1px solid #282e38; display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr));
+      gap:12px; font-size:13px;
     }
     .kv span { display:block; color:#8893a6; margin-bottom:3px; }
-    .kv b { font-weight:600; }
-    .error {
-      display:none;
-      margin-top:12px;
-      padding:12px 14px;
-      border-radius:12px;
-      background:#341c20;
-      color:#ffd1d7;
-      border:1px solid #63323a;
-      white-space: pre-wrap;
-    }
-    @media (max-width: 600px) {
-      body { padding: 12px; }
-      .topbar { align-items: start; flex-direction: column; }
-      .viewer { min-height: 300px; aspect-ratio: 3 / 4; }
+    .kv b { font-weight:600; word-break:break-word; }
+    .error { display:none; margin-top:12px; padding:12px 14px; border-radius:12px; background:#341c20; color:#ffd1d7; border:1px solid #63323a; white-space:pre-wrap; }
+    @media (max-width:600px) {
+      body { padding:12px; }
+      .topbar { align-items:start; flex-direction:column; }
+      .viewer { min-height:300px; aspect-ratio:3/4; }
     }
   </style>
 </head>
@@ -135,8 +78,9 @@
     <section class="details">
       <div class="kv"><span>Eufy verbinding</span><b id="ws">-</b></div>
       <div class="kv"><span>Viewer</span><b id="active">-</b></div>
-      <div class="kv"><span>Bron</span><b id="source">-</b></div>
-      <div class="kv"><span>Layer 0</span><b id="layer0">-</b></div>
+      <div class="kv"><span>Ontvangen</span><b id="source">-</b></div>
+      <div class="kv"><span>Actieve videobron</span><b id="selected">-</b></div>
+      <div class="kv"><span>Gedetecteerde bronnen</span><b id="sources">-</b></div>
       <div class="kv"><span>Frames</span><b id="frames">-</b></div>
       <div class="kv"><span>Kijkers</span><b id="clients">-</b></div>
     </section>
@@ -152,10 +96,7 @@
     let lastActive = false;
 
     async function api(path, options = {}) {
-      const response = await fetch(path, {
-        cache: 'no-store',
-        ...options,
-      });
+      const response = await fetch(path, { cache:'no-store', ...options });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Onbekende fout');
       return data;
@@ -177,12 +118,14 @@
       try {
         const s = await api('/api/status');
         const ready = s.wsConnected && s.listening && s.serialConfigured;
+        const sourceCount = Object.keys(s.streams || {}).length;
 
-        $('badge').textContent = s.active ? '● Live' : (ready ? 'Gereed' : 'Niet gereed');
+        $('badge').textContent = s.active ? (s.frames > 0 ? '● Live' : '● Verbinden…') : (ready ? 'Gereed' : 'Niet gereed');
         $('ws').textContent = s.wsConnected ? 'Verbonden' : 'Niet verbonden';
         $('active').textContent = s.active ? 'Live' : 'Gestopt';
         $('source').textContent = s.codec ? `${s.codec} ${s.width || '?'}×${s.height || '?'} ${s.fps || '?'}fps` : '-';
-        $('layer0').textContent = `${Math.round((s.layer0Bytes || 0) / 1024)} KiB`;
+        $('selected').textContent = s.selectedStream || (s.active ? 'Automatisch zoeken…' : '-');
+        $('sources').textContent = sourceCount ? String(sourceCount) : '-';
         $('frames').textContent = s.frames ?? 0;
         $('clients').textContent = s.clients ?? 0;
 
@@ -210,7 +153,7 @@
       startBtn.disabled = true;
       errorBox.style.display = 'none';
       try {
-        await api('/api/start', { method: 'POST' });
+        await api('/api/start', { method:'POST' });
         showStream();
         lastActive = true;
       } catch (error) {
@@ -222,7 +165,7 @@
 
     stopBtn.addEventListener('click', async () => {
       stopBtn.disabled = true;
-      try { await api('/api/stop', { method: 'POST' }); } catch {}
+      try { await api('/api/stop', { method:'POST' }); } catch {}
       hideStream();
       lastActive = false;
       refresh();
