@@ -1,71 +1,88 @@
-# Deurbel Viewer
+# Deurbel Security
 
-Een eenvoudige eigen webviewer voor de **Eufy T8213 Video Doorbell Dual**.
+Eigen webviewer en lokaal beveiligingssysteem voor de **Eufy T8213 Video Doorbell Dual**.
 
-De viewer is bedoeld voor de situatie waarin de officiële Eufy-app wel werkt, maar je de deurbel ook gewoon via een browser op je eigen netwerk wilt bekijken zonder Home Assistant als videospeler.
+Het project gebruikt een bestaande lokale `eufy-security-ws` verbinding. Home Assistant, go2rtc en VLC zijn niet nodig voor de webviewer.
 
-## Wat het project doet
+## Functies
 
-- eigen webpagina met **Live bekijken** en **Stop**;
-- gebruikt een bestaande lokale `eufy-security-ws` verbinding;
-- filtert automatisch alleen de geldige HEVC-basislaag (`layer_id 0`) uit de multi-layer videostream van de T8213;
-- zet die laag rechtstreeks met FFmpeg om naar MJPEG dat iedere normale browser kan tonen;
-- geen go2rtc, WebRTC-kaart, VLC of Home Assistant nodig voor het beeld;
-- stopt de livestream standaard na 120 seconden om de batterij te sparen;
-- bevat geen Eufy-wachtwoorden of tokens.
+- livebeeld van hoofd- en pakketcamera op één webpagina;
+- automatische watchdog wanneer de Eufy P2P-stream vastloopt;
+- eigen bewegingsdetectie op het videobeeld, dus niet afhankelijk van Eufy's bewegingsmelding;
+- beveiligingsmodus die de stream actief houdt en zelf beweging bewaakt;
+- bij beweging: standaard 5 seconden vóór en 15 seconden na de detectie opslaan;
+- MP4-opname plus JPEG-miniatuur;
+- opnameoverzicht in de webpagina met afspelen en verwijderen;
+- automatische verwijdering na standaard 14 dagen;
+- lokale opslag in `./recordings`, later eenvoudig te verplaatsen naar een extra HDD;
+- Eufy-wachtwoorden en tokens staan niet in deze repository.
 
 ## Vereisten
 
 - Linux-server met Docker en Docker Compose;
-- `eufy-security-ws` draait lokaal en luistert op poort `3000`;
-- je T8213 is zichtbaar voor het Eufy-account waarmee `eufy-security-ws` is ingelogd.
+- `eufy-security-ws` draait lokaal op poort `3000`;
+- de T8213 is zichtbaar voor het account waarmee `eufy-security-ws` is ingelogd.
 
 ## Installeren
-
-Clone de repository:
 
 ```bash
 git clone https://github.com/PascalVZ96/deurbel.git
 cd deurbel
-```
-
-Start de setup met het serienummer van je deurbel:
-
-```bash
 bash setup.sh T8213XXXXXXXXXXXX
 ```
 
-De setup maakt lokaal een `.env` aan en bouwt de Docker-container. `.env` staat in `.gitignore` en wordt dus niet naar GitHub gestuurd.
-
-Standaard is de viewer daarna bereikbaar op:
+Open daarna:
 
 ```text
 http://SERVER-IP:8090
 ```
 
-Als UFW actief is, open poort 8090 alleen voor je thuisnetwerk:
+## Bestaande installatie bijwerken
 
 ```bash
-sudo ufw allow from 192.168.178.0/24 to any port 8090 proto tcp comment 'Deurbel Viewer'
+cd ~/deurbel
+git pull
+sudo docker compose up -d --build
 ```
 
-## Bediening
+## Beveiligingsmodus
 
-Open de webpagina en druk op **Live bekijken**. De backend vraagt de Eufy P2P-livestream aan, haalt alleen `layer_id 0` uit de multi-layer HEVC-data en geeft het resultaat via FFmpeg als MJPEG aan de browser.
+Klik op **Beveiliging inschakelen**. De interne viewer blijft dan actief en de beveiligingsmonitor analyseert het livebeeld op echte beeldverandering.
 
-Met **Stop** wordt de Eufy-livestream weer beëindigd. Zonder handmatig stoppen gebeurt dit standaard automatisch na twee minuten.
+De eerste instellingen zijn bewust gevoelig om meer beweging te zien dan de standaard Eufy-detectie. In `.env` kun je dit later aanpassen:
 
-## Instellingen
+```text
+MOTION_THRESHOLD_PERCENT=1.5
+MOTION_PIXEL_THRESHOLD=24
+PRE_RECORD_SECONDS=5
+POST_RECORD_SECONDS=15
+RETENTION_DAYS=14
+```
 
-Zie `.env.example` voor de beschikbare instellingen:
+Een lager `MOTION_THRESHOLD_PERCENT` maakt de detectie gevoeliger.
 
-- `EUFY_SERIAL` – serienummer van de deurbel;
-- `EUFY_WS_URL` – standaard `ws://127.0.0.1:3000`;
-- `WEB_PORT` – standaard `8090`;
-- `AUTO_STOP_SECONDS` – standaard `120`;
-- `MJPEG_FPS` – standaard `8`;
-- `MJPEG_QUALITY` – FFmpeg JPEG-kwaliteit, standaard `5`.
+## Opslag en later een extra HDD
 
-## Opmerking over de T8213
+Standaard komen video's in:
 
-De T8213 levert via de P2P-interface een multi-layer HEVC-stream. In tests bleek `layer_id 0` zelfstandig een geldige HEVC-video van **1024×1472 op 15 fps** te bevatten. Deze viewer filtert die laag vóór FFmpeg, zodat FFmpeg niet meer tegen de multi-layer HEVC-parserfout aanloopt.
+```text
+./recordings
+```
+
+Docker ziet die map als `/recordings`.
+
+Wanneer later een extra HDD is gemount, bijvoorbeeld op `/mnt/security`, hoeft alleen dit in `.env` te worden gezet:
+
+```text
+RECORDINGS_HOST_PATH=/mnt/security
+```
+
+Daarna:
+
+```bash
+sudo docker compose up -d
+```
+
+## Architectuur
+
+De bewezen Eufy-viewer draait intern op poort `8092`. Het beveiligingsdashboard draait publiek op `8090`, stuurt de viewer aan, analyseert de MJPEG-beelden en maakt lokale H.264/MP4-opnames bij beweging.
