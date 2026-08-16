@@ -9,23 +9,15 @@ const config = {
   port: Number(process.env.WEB_PORT || 8090),
   viewerPort: Number(process.env.VIEWER_PORT || 8092),
   mjpegFps: Number(process.env.MJPEG_FPS || 8),
-  motionFps: Number(process.env.MOTION_FPS || 2),
-  motionPixelThreshold: Number(process.env.MOTION_PIXEL_THRESHOLD || 24),
-  motionThresholdPercent: Number(process.env.MOTION_THRESHOLD_PERCENT || 1.5),
-  motionMinHits: Number(process.env.MOTION_MIN_HITS || 2),
-  warmupSeconds: Number(process.env.MOTION_WARMUP_SECONDS || 3),
-  preSeconds: Number(process.env.PRE_RECORD_SECONDS || 5),
-  postSeconds: Number(process.env.POST_RECORD_SECONDS || 15),
-  maxRecordSeconds: Number(process.env.MAX_RECORD_SECONDS || 300),
+  eventSeconds: Number(process.env.EVENT_RECORD_SECONDS || 30),
+  wakeTimeoutSeconds: Number(process.env.EVENT_WAKE_TIMEOUT_SECONDS || 15),
+  maxRecordSeconds: Number(process.env.MAX_RECORD_SECONDS || 120),
   retentionDays: Number(process.env.RETENTION_DAYS || 14),
   recordingsDir: process.env.RECORDINGS_DIR || '/recordings',
   dataDir: process.env.DATA_DIR || '/data',
 };
 
 const VIEWER = `http://127.0.0.1:${config.viewerPort}`;
-const MOTION_W = 96;
-const MOTION_H = 138;
-const MOTION_SIZE = MOTION_W * MOTION_H;
 const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'security.html'));
 const settingsFile = path.join(config.dataDir, 'security.json');
 fs.mkdirSync(config.recordingsDir, { recursive: true });
@@ -38,11 +30,12 @@ const saved = loadSettings();
 
 const state = {
   securityEnabled: Boolean(saved.securityEnabled),
+  eventActive: false,
+  eventStarting: false,
   monitorConnected: false,
-  motionActive: false,
-  motionScore: 0,
-  motionHits: 0,
-  lastMotionAt: 0,
+  lastTriggerAt: 0,
+  lastTriggerSource: null,
+  triggerCount: 0,
   recording: false,
   recordingFile: null,
   recordingStartedAt: null,
@@ -51,15 +44,13 @@ const state = {
   lastError: null,
 };
 
-let monitorAbort = null;
-let monitorLoopRunning = false;
-let detector = null;
-let detectorPending = Buffer.alloc(0);
-let previousMotion = null;
-let detectorHits = 0;
-let securityStartedAt = 0;
-let preBuffer = [];
+let eventAbort = null;
+let eventStopTimer = null;
+let eventStopAt = 0;
+let eventPromise = null;
+let eventOwnsViewer = false;
 let recorder = null;
+let lastJpeg = null;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -119,99 +110,20 @@ function cleanupOld() {
   refreshStorage();
 }
 
-function startDetector() {
-  if (detector && !detector.killed) return;
-  detectorPending = Buffer.alloc(0);
-  previousMotion = null;
-  detectorHits = 0;
-
-  detector = spawn('ffmpeg', [
-    '-hide_banner', '-loglevel', 'error',
-    '-f', 'image2pipe', '-framerate', String(config.mjpegFps), '-vcodec', 'mjpeg', '-i', 'pipe:0',
-    '-vf', `fps=${config.motionFps},scale=${MOTION_W}:${MOTION_H},format=gray`,
-    '-f', 'rawvideo', '-pix_fmt', 'gray', 'pipe:1',
-  ], { stdio: ['pipe', 'pipe', 'pipe'] });
-
-  detector.stdout.on('data', parseMotion);
-  detector.stderr.on('data', (chunk) => {
-    const text = chunk.toString().trim();
-    if (text) console.warn('[detectie]', text);
-  });
-  detector.on('exit', () => { detector = null; });
-}
-
-function stopDetector() {
-  const current = detector;
-  detector = null;
-  previousMotion = null;
-  detectorPending = Buffer.alloc(0);
-  detectorHits = 0;
-  try { current?.stdin?.end(); } catch {}
-  if (current && !current.killed) setTimeout(() => { try { current.kill('SIGKILL'); } catch {} }, 1000).unref();
-}
-
-function feedDetector(jpeg) {
-  if (!state.securityEnabled) return;
-  startDetector();
-  if (!detector?.stdin || detector.stdin.destroyed || detector.stdin.writableNeedDrain) return;
-  try { detector.stdin.write(jpeg); } catch {}
-}
-
-function parseMotion(chunk) {
-  detectorPending = Buffer.concat([detectorPending, chunk]);
-  while (detectorPending.length >= MOTION_SIZE) {
-    const frame = detectorPending.subarray(0, MOTION_SIZE);
-    detectorPending = detectorPending.subarray(MOTION_SIZE);
-
-    if (!state.securityEnabled || Date.now() - securityStartedAt < config.warmupSeconds * 1000) {
-      previousMotion = Buffer.from(frame);
-      continue;
-    }
-    if (!previousMotion) { previousMotion = Buffer.from(frame); continue; }
-
-    let changed = 0;
-    let checked = 0;
-    const ignoreTop = Math.floor(MOTION_H * 0.05);
-    for (let y = ignoreTop; y < MOTION_H; y++) {
-      const row = y * MOTION_W;
-      for (let x = 0; x < MOTION_W; x++) {
-        const i = row + x;
-        checked++;
-        if (Math.abs(frame[i] - previousMotion[i]) >= config.motionPixelThreshold) changed++;
-      }
-    }
-    previousMotion = Buffer.from(frame);
-    const score = checked ? changed / checked * 100 : 0;
-    state.motionScore = Number(score.toFixed(2));
-
-    if (score >= config.motionThresholdPercent) detectorHits++;
-    else detectorHits = 0;
-    state.motionHits = detectorHits;
-
-    if (detectorHits >= config.motionMinHits) {
-      detectorHits = 0;
-      state.motionHits = 0;
-      motionDetected(score);
-    }
-  }
-}
-
-function addPreFrame(jpeg) {
-  const now = Date.now();
-  preBuffer.push({ time: now, jpeg: Buffer.from(jpeg) });
-  const cutoff = now - config.preSeconds * 1000;
-  while (preBuffer.length && preBuffer[0].time < cutoff) preBuffer.shift();
-}
-
 function timestamp() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
 }
 
-function startRecording(score, snapshot) {
+function safeSource(source) {
+  return String(source || 'sensor').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').slice(0, 24) || 'sensor';
+}
+
+function startRecording(snapshot, source) {
   if (recorder || !snapshot) return;
-  const base = `motion_${timestamp()}`;
+
+  const base = `motion_${timestamp()}_${safeSource(source)}`;
   const mp4 = path.join(config.recordingsDir, base + '.mp4');
   const jpg = path.join(config.recordingsDir, base + '.jpg');
   try { fs.writeFileSync(jpg, snapshot); } catch {}
@@ -228,14 +140,18 @@ function startRecording(score, snapshot) {
     stdin: child.stdin,
     file: base + '.mp4',
     startedAt: Date.now(),
-    stopAfter: Date.now() + config.postSeconds * 1000,
   };
+
   state.recording = true;
   state.recordingFile = recorder.file;
   state.recordingStartedAt = new Date().toISOString();
-  console.log(`Beweging ${score.toFixed(2)}% -> opname ${recorder.file}`);
+  console.log(`[security] Opname gestart: ${recorder.file}`);
 
-  child.stderr.on('data', (chunk) => { const t = chunk.toString().trim(); if (t) console.warn('[opname]', t); });
+  child.stderr.on('data', (chunk) => {
+    const text = chunk.toString().trim();
+    if (text) console.warn('[opname]', text);
+  });
+
   child.on('exit', () => {
     if (recorder?.process === child) recorder = null;
     state.recording = false;
@@ -243,8 +159,6 @@ function startRecording(score, snapshot) {
     state.recordingStartedAt = null;
     refreshStorage();
   });
-
-  for (const frame of preBuffer) writeRecording(frame.jpeg);
 }
 
 function writeRecording(jpeg) {
@@ -260,18 +174,14 @@ function finishRecording() {
   state.recordingFile = null;
   state.recordingStartedAt = null;
   try { current.stdin.end(); } catch {}
-  setTimeout(() => { if (!current.process.killed) { try { current.process.kill('SIGTERM'); } catch {} } }, 5000).unref();
+  setTimeout(() => {
+    if (!current.process.killed) {
+      try { current.process.kill('SIGTERM'); } catch {}
+    }
+  }, 5000).unref();
 }
 
-let lastJpeg = null;
-function motionDetected(score) {
-  state.motionActive = true;
-  state.lastMotionAt = Date.now();
-  if (!recorder) startRecording(score, lastJpeg);
-  if (recorder) recorder.stopAfter = Date.now() + config.postSeconds * 1000;
-}
-
-function parseMjpegChunk(parser, chunk) {
+function parseMjpegChunk(parser, chunk, onFrame) {
   parser.pending = Buffer.concat([parser.pending, chunk]);
   while (true) {
     const start = parser.pending.indexOf(Buffer.from([0xff, 0xd8]));
@@ -284,92 +194,189 @@ function parseMjpegChunk(parser, chunk) {
     if (end < 0) return;
     const jpeg = Buffer.from(parser.pending.subarray(0, end + 2));
     parser.pending = parser.pending.subarray(end + 2);
-    lastJpeg = jpeg;
-    addPreFrame(jpeg);
-    feedDetector(jpeg);
-    if (recorder) writeRecording(jpeg);
+    onFrame(jpeg);
   }
 }
 
-async function ensureViewerStarted() {
-  const status = await viewerStatus();
-  if (!status.wsConnected || !status.listening) return false;
+async function waitForHealthy(timeoutSeconds = config.wakeTimeoutSeconds) {
+  const deadline = Date.now() + Math.max(3, timeoutSeconds) * 1000;
+  while (Date.now() < deadline) {
+    const status = await viewerStatus();
+    if (status.streamHealthy && Number(status.frames || 0) > 0) return true;
+    await sleep(500);
+  }
+  return false;
+}
+
+async function startFreshViewer() {
+  let status = await viewerStatus();
+  if (!status.wsConnected || !status.listening) throw new Error('eufy-security-ws is niet gereed');
+
+  let ownsViewer = !status.active;
+
+  if (status.active && !status.streamHealthy) {
+    console.warn('[security] Bestaande stream is ongezond; eerst volledig stoppen.');
+    try { await viewerJson('/api/stop', { method:'POST' }); } catch {}
+    await sleep(1200);
+    status = await viewerStatus();
+    ownsViewer = true;
+  }
+
   if (!status.active) {
     await viewerJson('/api/start', { method:'POST' });
-    await sleep(1000);
+    ownsViewer = true;
   }
-  return true;
+
+  if (await waitForHealthy()) return ownsViewer;
+
+  console.warn('[security] Geen beeld na eerste start; geforceerde tweede poging.');
+  try { await viewerJson('/api/stop', { method:'POST' }); } catch {}
+  await sleep(1500);
+  await viewerJson('/api/start', { method:'POST' });
+  ownsViewer = true;
+
+  if (!await waitForHealthy()) throw new Error('Deurbel werd niet wakker: geen decodeerbare liveframes');
+  return ownsViewer;
 }
 
-async function monitorLoop() {
-  if (monitorLoopRunning) return;
-  monitorLoopRunning = true;
+function scheduleEventStop() {
+  if (eventStopTimer) clearTimeout(eventStopTimer);
+  if (!eventAbort) return;
 
-  while (state.securityEnabled) {
-    try {
-      const ready = await ensureViewerStarted();
-      if (!ready) { await sleep(2000); continue; }
+  const delay = Math.max(500, eventStopAt - Date.now());
+  eventStopTimer = setTimeout(() => {
+    console.log('[security] Opnametijd voorbij; camera mag weer slapen.');
+    try { eventAbort?.abort(); } catch {}
+  }, delay);
+  eventStopTimer.unref?.();
+}
 
-      monitorAbort = new AbortController();
-      const response = await fetch(VIEWER + '/stream.mjpg?security=1&t=' + Date.now(), { signal: monitorAbort.signal, cache:'no-store' });
-      if (!response.ok || !response.body) throw new Error(`MJPEG HTTP ${response.status}`);
-      state.monitorConnected = true;
-      state.lastError = null;
-      securityStartedAt = Date.now();
-      startDetector();
-      const parser = { pending: Buffer.alloc(0) };
+async function runTriggeredEvent(source) {
+  state.eventActive = true;
+  state.eventStarting = true;
+  state.lastError = null;
+  eventOwnsViewer = false;
+  lastJpeg = null;
 
-      for await (const chunk of response.body) {
-        if (!state.securityEnabled) break;
-        parseMjpegChunk(parser, Buffer.from(chunk));
-      }
-    } catch (error) {
-      if (state.securityEnabled && error.name !== 'AbortError') {
-        state.lastError = `Bewakingsstream opnieuw verbinden: ${error.message}`;
-        console.warn(state.lastError);
-      }
-    } finally {
-      state.monitorConnected = false;
-      monitorAbort = null;
+  try {
+    eventOwnsViewer = await startFreshViewer();
+
+    eventAbort = new AbortController();
+    const response = await fetch(VIEWER + '/stream.mjpg?security-event=1&t=' + Date.now(), {
+      signal: eventAbort.signal,
+      cache: 'no-store',
+    });
+    if (!response.ok || !response.body) throw new Error(`MJPEG HTTP ${response.status}`);
+
+    state.monitorConnected = true;
+    state.eventStarting = false;
+    const parser = { pending: Buffer.alloc(0) };
+    let firstFrame = true;
+
+    for await (const chunk of response.body) {
+      parseMjpegChunk(parser, Buffer.from(chunk), (jpeg) => {
+        lastJpeg = jpeg;
+        if (firstFrame) {
+          firstFrame = false;
+          startRecording(jpeg, source);
+          eventStopAt = Math.max(eventStopAt, Date.now() + config.eventSeconds * 1000);
+          scheduleEventStop();
+        }
+        if (recorder) writeRecording(jpeg);
+      });
     }
-    if (state.securityEnabled) await sleep(1200);
+  } catch (error) {
+    if (error.name !== 'AbortError') {
+      state.lastError = `Beveiligingsopname mislukt: ${error.message}`;
+      console.warn(state.lastError);
+    }
+  } finally {
+    if (eventStopTimer) clearTimeout(eventStopTimer);
+    eventStopTimer = null;
+    eventAbort = null;
+    state.monitorConnected = false;
+    state.eventStarting = false;
+    state.eventActive = false;
+
+    if (recorder) finishRecording();
+    await sleep(600);
+
+    if (eventOwnsViewer) {
+      try { await viewerJson('/api/stop', { method:'POST' }); } catch {}
+    }
+
+    eventOwnsViewer = false;
+    eventStopAt = 0;
+    eventPromise = null;
+    refreshStorage();
+  }
+}
+
+function triggerEvent(source = 'sensor') {
+  if (!state.securityEnabled) throw new Error('Beveiliging staat uit');
+
+  const now = Date.now();
+  state.lastTriggerAt = now;
+  state.lastTriggerSource = source;
+  state.triggerCount++;
+  state.lastError = null;
+  eventStopAt = Math.max(eventStopAt, now + config.eventSeconds * 1000);
+
+  if (eventPromise) {
+    console.log(`[security] Extra trigger (${source}); opname verlengd.`);
+    scheduleEventStop();
+    return { started:false, extended:true };
   }
 
-  stopDetector();
-  monitorLoopRunning = false;
+  console.log(`[security] Bewegings-trigger: ${source}`);
+  eventPromise = runTriggeredEvent(source);
+  return { started:true, extended:false };
 }
 
 async function setSecurity(enabled) {
   state.securityEnabled = Boolean(enabled);
   saveSettings();
-  state.motionActive = false;
-  state.motionScore = 0;
   state.lastError = null;
 
   if (state.securityEnabled) {
-    securityStartedAt = Date.now();
-    monitorLoop();
+    // Zuinige modus: bij inschakelen moet de camera juist slapen.
+    if (!state.eventActive) {
+      try { await viewerJson('/api/stop', { method:'POST' }); } catch {}
+    }
+    console.log('[security] Zuinige beveiliging actief: camera slaapt tot een trigger binnenkomt.');
   } else {
-    try { monitorAbort?.abort(); } catch {}
-    stopDetector();
+    try { eventAbort?.abort(); } catch {}
     if (recorder) finishRecording();
     try { await viewerJson('/api/stop', { method:'POST' }); } catch {}
+    console.log('[security] Beveiliging uitgeschakeld.');
   }
 }
 
 function serveFile(req, res, filePath, type) {
   let stat;
   try { stat = fs.statSync(filePath); } catch { res.writeHead(404); res.end(); return; }
+
   const range = req.headers.range;
   if (range && type === 'video/mp4') {
     const match = /bytes=(\d*)-(\d*)/.exec(range);
     const start = match?.[1] ? Number(match[1]) : 0;
     const end = match?.[2] ? Math.min(Number(match[2]), stat.size - 1) : stat.size - 1;
-    res.writeHead(206, { 'Content-Type':type, 'Content-Length':end-start+1, 'Content-Range':`bytes ${start}-${end}/${stat.size}`, 'Accept-Ranges':'bytes' });
+    res.writeHead(206, {
+      'Content-Type': type,
+      'Content-Length': end - start + 1,
+      'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+      'Accept-Ranges': 'bytes',
+    });
     fs.createReadStream(filePath, { start, end }).pipe(res);
     return;
   }
-  res.writeHead(200, { 'Content-Type':type, 'Content-Length':stat.size, 'Accept-Ranges':'bytes', 'Cache-Control':'no-store' });
+
+  res.writeHead(200, {
+    'Content-Type': type,
+    'Content-Length': stat.size,
+    'Accept-Ranges': 'bytes',
+    'Cache-Control': 'no-store',
+  });
   fs.createReadStream(filePath).pipe(res);
 }
 
@@ -378,10 +385,11 @@ async function proxyStream(req, res) {
     const response = await fetch(VIEWER + '/stream.mjpg?browser=1&t=' + Date.now(), { cache:'no-store' });
     res.writeHead(response.status, {
       'Content-Type': response.headers.get('content-type') || 'multipart/x-mixed-replace; boundary=frame',
-      'Cache-Control':'no-store, no-cache, must-revalidate',
-      'Connection':'keep-alive',
-      'X-Accel-Buffering':'no',
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
     });
+
     for await (const chunk of response.body) {
       if (res.destroyed) break;
       if (!res.write(Buffer.from(chunk))) await new Promise((resolve) => res.once('drain', resolve));
@@ -394,21 +402,13 @@ async function proxyStream(req, res) {
 }
 
 setInterval(() => {
-  const now = Date.now();
-  if (state.motionActive && now - state.lastMotionAt > 2500) state.motionActive = false;
-  if (recorder) {
-    const maxed = now - recorder.startedAt >= config.maxRecordSeconds * 1000;
-    if (now >= recorder.stopAfter || maxed) finishRecording();
+  if (!recorder) return;
+  if (Date.now() - recorder.startedAt >= config.maxRecordSeconds * 1000) {
+    console.warn('[security] Maximale opnameduur bereikt.');
+    try { eventAbort?.abort(); } catch {}
   }
-}, 500).unref();
+}, 1000).unref();
 
-setInterval(async () => {
-  if (!state.securityEnabled) return;
-  const status = await viewerStatus();
-  if (!status.active && status.wsConnected && status.listening) {
-    try { await viewerJson('/api/start', { method:'POST' }); } catch {}
-  }
-}, 5000).unref();
 setInterval(cleanupOld, 6 * 60 * 60 * 1000).unref();
 
 const server = http.createServer(async (req, res) => {
@@ -416,37 +416,85 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/') {
     res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Content-Length':html.length, 'Cache-Control':'no-store' });
-    res.end(html); return;
+    res.end(html);
+    return;
   }
 
   if (req.method === 'GET' && url.pathname === '/api/status') {
     refreshStorage();
     const viewer = await viewerStatus();
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
-    res.end(JSON.stringify({ ...viewer, security:{ ...state, retentionDays:config.retentionDays, threshold:config.motionThresholdPercent, preSeconds:config.preSeconds, postSeconds:config.postSeconds } }));
+    res.end(JSON.stringify({
+      ...viewer,
+      security: {
+        ...state,
+        retentionDays: config.retentionDays,
+        eventSeconds: config.eventSeconds,
+        wakeTimeoutSeconds: config.wakeTimeoutSeconds,
+      },
+    }));
     return;
   }
 
   if (req.method === 'GET' && url.pathname === '/api/recordings') {
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
-    res.end(JSON.stringify({ recordings:listRecordings() })); return;
+    res.end(JSON.stringify({ recordings:listRecordings() }));
+    return;
   }
 
   if (req.method === 'POST' && url.pathname === '/api/security/on') {
-    await setSecurity(true); res.writeHead(200, { 'Content-Type':'application/json' }); res.end('{"ok":true}'); return;
-  }
-  if (req.method === 'POST' && url.pathname === '/api/security/off') {
-    await setSecurity(false); res.writeHead(200, { 'Content-Type':'application/json' }); res.end('{"ok":true}'); return;
-  }
-  if (req.method === 'POST' && url.pathname === '/api/start') {
-    try { const data = await viewerJson('/api/start', { method:'POST' }); res.writeHead(200, {'Content-Type':'application/json'}); res.end(JSON.stringify(data)); }
-    catch (error) { res.writeHead(503, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:error.message})); }
+    await setSecurity(true);
+    res.writeHead(200, { 'Content-Type':'application/json' });
+    res.end('{"ok":true}');
     return;
   }
+
+  if (req.method === 'POST' && url.pathname === '/api/security/off') {
+    await setSecurity(false);
+    res.writeHead(200, { 'Content-Type':'application/json' });
+    res.end('{"ok":true}');
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/trigger') {
+    try {
+      const source = url.searchParams.get('source') || req.headers['x-trigger-source'] || 'external';
+      const result = triggerEvent(source);
+      res.writeHead(202, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:true, ...result, recordSeconds:config.eventSeconds }));
+    } catch (error) {
+      res.writeHead(409, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:false, error:error.message }));
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/start') {
+    try {
+      const data = await viewerJson('/api/start', { method:'POST' });
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify(data));
+    } catch (error) {
+      res.writeHead(503, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false,error:error.message}));
+    }
+    return;
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/stop') {
-    if (state.securityEnabled) { res.writeHead(409, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:'Schakel eerst beveiliging uit'})); return; }
-    try { const data = await viewerJson('/api/stop', { method:'POST' }); res.writeHead(200, {'Content-Type':'application/json'}); res.end(JSON.stringify(data)); }
-    catch (error) { res.writeHead(503, {'Content-Type':'application/json'}); res.end(JSON.stringify({ok:false,error:error.message})); }
+    if (state.eventActive) {
+      res.writeHead(409, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false,error:'Beveiligingsopname is bezig'}));
+      return;
+    }
+    try {
+      const data = await viewerJson('/api/stop', { method:'POST' });
+      res.writeHead(200, {'Content-Type':'application/json'});
+      res.end(JSON.stringify(data));
+    } catch (error) {
+      res.writeHead(503, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({ok:false,error:error.message}));
+    }
     return;
   }
 
@@ -454,29 +502,55 @@ const server = http.createServer(async (req, res) => {
     const name = decodeURIComponent(url.pathname.slice('/api/recordings/'.length));
     if (!/^motion_[A-Za-z0-9_-]+\.mp4$/.test(name)) { res.writeHead(400); res.end(); return; }
     const base = name.slice(0,-4);
-    for (const ext of ['.mp4','.jpg']) { try { fs.unlinkSync(path.join(config.recordingsDir, base+ext)); } catch {} }
-    refreshStorage(); res.writeHead(200, {'Content-Type':'application/json'}); res.end('{"ok":true}'); return;
+    for (const ext of ['.mp4','.jpg']) {
+      try { fs.unlinkSync(path.join(config.recordingsDir, base+ext)); } catch {}
+    }
+    refreshStorage();
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end('{"ok":true}');
+    return;
   }
 
-  if (req.method === 'GET' && url.pathname === '/stream.mjpg') { await proxyStream(req, res); return; }
+  if (req.method === 'GET' && url.pathname === '/stream.mjpg') {
+    await proxyStream(req, res);
+    return;
+  }
 
   if (req.method === 'GET' && url.pathname.startsWith('/recordings/')) {
     const name = decodeURIComponent(url.pathname.slice('/recordings/'.length));
     if (!/^motion_[A-Za-z0-9_-]+\.(mp4|jpg)$/.test(name)) { res.writeHead(400); res.end(); return; }
-    serveFile(req, res, path.join(config.recordingsDir, name), name.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg'); return;
+    serveFile(req, res, path.join(config.recordingsDir, name), name.endsWith('.mp4') ? 'video/mp4' : 'image/jpeg');
+    return;
   }
 
   if (url.pathname === '/favicon.ico') { res.writeHead(204); res.end(); return; }
-  res.writeHead(404); res.end('Not found');
+  res.writeHead(404);
+  res.end('Not found');
 });
 
-refreshStorage(); cleanupOld();
+refreshStorage();
+cleanupOld();
 server.listen(config.port, '0.0.0.0', () => {
   console.log(`Deurbel Security: http://0.0.0.0:${config.port} (viewer intern op ${config.viewerPort})`);
-  console.log(`Detectie: ${config.motionThresholdPercent}% | ${config.preSeconds}s voor + ${config.postSeconds}s na beweging`);
+  console.log(`Zuinige modus: camera slaapt; trigger => ${config.eventSeconds}s opname`);
+  console.log(`Trigger endpoint: POST /api/trigger?source=pir`);
   console.log(`Opnames: ${config.recordingsDir} | bewaren: ${config.retentionDays} dagen`);
-  if (state.securityEnabled) monitorLoop();
+
+  if (state.securityEnabled) {
+    setTimeout(() => {
+      viewerJson('/api/stop', { method:'POST' }).catch(() => {});
+    }, 1500).unref();
+  }
 });
 
-process.on('SIGTERM', () => { try { monitorAbort?.abort(); } catch {}; stopDetector(); if (recorder) finishRecording(); process.exit(0); });
-process.on('SIGINT', () => { try { monitorAbort?.abort(); } catch {}; stopDetector(); if (recorder) finishRecording(); process.exit(0); });
+process.on('SIGTERM', () => {
+  try { eventAbort?.abort(); } catch {}
+  if (recorder) finishRecording();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  try { eventAbort?.abort(); } catch {}
+  if (recorder) finishRecording();
+  process.exit(0);
+});
