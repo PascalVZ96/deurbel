@@ -17,9 +17,9 @@ cat > .env <<EOF
 EUFY_SERIAL=$SERIAL
 EUFY_WS_URL=ws://127.0.0.1:3000
 WEB_PORT=$PORT
-AUTO_STOP_SECONDS=120
 MJPEG_FPS=8
 MJPEG_QUALITY=5
+WATCHDOG_SECONDS=8
 EOF
 
 echo "Docker-image bouwen en viewer starten..."
