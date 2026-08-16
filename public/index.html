@@ -8,191 +8,62 @@
     :root { color-scheme: dark; }
     * { box-sizing: border-box; }
     body {
-      margin: 0;
-      min-height: 100vh;
-      background: #111318;
-      color: #f5f7fb;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      padding: 24px;
+      margin:0; min-height:100vh; background:#111318; color:#f5f7fb;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      padding:24px;
     }
-    .app { width: min(100%, 1180px); margin: 0 auto; }
-    .topbar {
-      display:flex;
-      align-items:end;
-      justify-content:space-between;
-      gap:16px;
-      margin-bottom:16px;
-    }
+    .app { width:min(100%,1180px); margin:0 auto; }
+    .topbar { display:flex; align-items:end; justify-content:space-between; gap:16px; margin-bottom:16px; }
     h1 { margin:0; font-size:clamp(26px,5vw,42px); }
     .sub { margin-top:5px; color:#aeb6c5; }
-    .badge {
-      padding:8px 12px;
-      border-radius:999px;
-      background:#242933;
-      color:#c6cedd;
-      font-size:13px;
-      white-space:nowrap;
-    }
-
-    .camera-grid {
-      display:grid;
-      grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:16px;
-      align-items:start;
-    }
-    .camera-card {
-      background:#191d24;
-      border:1px solid #2b313d;
-      border-radius:18px;
-      overflow:hidden;
-      box-shadow:0 18px 60px rgba(0,0,0,.28);
-    }
-    .camera-head {
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      padding:11px 14px;
-      font-size:14px;
-    }
+    .badge { padding:8px 12px; border-radius:999px; background:#242933; color:#c6cedd; font-size:13px; white-space:nowrap; }
+    .camera-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:start; }
+    .camera-card { background:#191d24; border:1px solid #2b313d; border-radius:18px; overflow:hidden; box-shadow:0 18px 60px rgba(0,0,0,.28); }
+    .camera-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 14px; font-size:14px; }
     .camera-head strong { font-size:15px; }
     .camera-head span { color:#8f9aae; font-size:12px; }
-
-    .camera-view {
-      position:relative;
-      overflow:hidden;
-      background:#050607;
-    }
+    .camera-view { position:relative; overflow:hidden; background:#050607; }
     .camera-view.top { aspect-ratio:4 / 3; }
     .camera-view.bottom { aspect-ratio:16 / 9; }
-
-    /*
-      De T8213 levert één samengesteld frame met verhouding 16:23:
-      - bovenste camera: 16:12 (4:3)
-      - Eufy Dual Cam scheidingsbalk: 16:2
-      - onderste camera: 16:9
-      Daarom krijgt elke kaart zijn eigen exacte uitsnede uit hetzelfde MJPEG-frame.
-    */
-    .crop-source {
-      position:absolute;
-      left:0;
-      width:100%;
-      object-fit:fill;
-      display:none;
-      background:#000;
-    }
-    .camera-view.top .crop-source {
-      top:0;
-      height:191.666667%;
-    }
-    .camera-view.bottom .crop-source {
-      top:-155.555556%;
-      height:255.555556%;
-    }
-
-    .placeholder {
-      position:absolute;
-      inset:0;
-      display:grid;
-      place-items:center;
-      text-align:center;
-      padding:24px;
-      color:#9ea8ba;
-    }
-    .placeholder strong {
-      display:block;
-      color:#fff;
-      font-size:18px;
-      margin-bottom:6px;
-    }
-
+    .crop-source { position:absolute; left:0; width:100%; object-fit:fill; display:none; background:#000; }
+    .camera-view.top .crop-source { top:0; height:191.666667%; }
+    .camera-view.bottom .crop-source { top:-155.555556%; height:255.555556%; }
+    .placeholder { position:absolute; inset:0; display:grid; place-items:center; text-align:center; padding:24px; color:#9ea8ba; }
+    .placeholder strong { display:block; color:#fff; font-size:18px; margin-bottom:6px; }
     .controls { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
-    button {
-      border:0;
-      border-radius:12px;
-      padding:13px 18px;
-      font:inherit;
-      font-weight:700;
-      cursor:pointer;
-    }
+    button { border:0; border-radius:12px; padding:13px 18px; font:inherit; font-weight:700; cursor:pointer; }
     button:disabled { opacity:.45; cursor:not-allowed; }
     #start { background:#fff; color:#101216; }
     #stop { background:#2b3039; color:#fff; }
-
-    details {
-      margin-top:14px;
-      border:1px solid #282e38;
-      border-radius:14px;
-      background:#191d24;
-      overflow:hidden;
-    }
-    summary {
-      cursor:pointer;
-      padding:13px 16px;
-      color:#aeb6c5;
-      user-select:none;
-    }
-    .details {
-      padding:0 16px 15px;
-      display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(145px,1fr));
-      gap:12px;
-      font-size:13px;
-    }
+    details { margin-top:14px; border:1px solid #282e38; border-radius:14px; background:#191d24; overflow:hidden; }
+    summary { cursor:pointer; padding:13px 16px; color:#aeb6c5; user-select:none; }
+    .details { padding:0 16px 15px; display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:12px; font-size:13px; }
     .kv span { display:block; color:#8893a6; margin-bottom:3px; }
     .kv b { font-weight:600; word-break:break-word; }
-    .error {
-      display:none;
-      margin-top:12px;
-      padding:12px 14px;
-      border-radius:12px;
-      background:#341c20;
-      color:#ffd1d7;
-      border:1px solid #63323a;
-      white-space:pre-wrap;
-    }
-
-    @media (max-width:760px) {
-      body { padding:12px; }
-      .topbar { align-items:start; flex-direction:column; }
-      .camera-grid { grid-template-columns:1fr; }
-    }
+    .error { display:none; margin-top:12px; padding:12px 14px; border-radius:12px; background:#341c20; color:#ffd1d7; border:1px solid #63323a; white-space:pre-wrap; }
+    @media (max-width:760px) { body { padding:12px; } .topbar { align-items:start; flex-direction:column; } .camera-grid { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
   <main class="app">
     <div class="topbar">
-      <div>
-        <h1>Voordeur</h1>
-        <div class="sub">Eufy Dual deurbelviewer</div>
-      </div>
+      <div><h1>Voordeur</h1><div class="sub">Eufy Dual deurbelviewer</div></div>
       <div id="badge" class="badge">Verbinden…</div>
     </div>
 
     <section class="camera-grid">
       <article class="camera-card">
-        <div class="camera-head">
-          <strong>Hoofdcamera</strong>
-          <span>Bovenste lens · 4:3</span>
-        </div>
+        <div class="camera-head"><strong>Hoofdcamera</strong><span>Bovenste lens · 4:3</span></div>
         <div class="camera-view top">
           <img id="topStream" class="crop-source" alt="Livebeeld hoofdcamera">
-          <div class="placeholder dual-placeholder">
-            <div><strong>Livebeeld staat uit</strong>Druk op “Live bekijken”.</div>
-          </div>
+          <div class="placeholder dual-placeholder"><div><strong>Livebeeld staat uit</strong>Druk op “Live bekijken”.</div></div>
         </div>
       </article>
-
       <article class="camera-card">
-        <div class="camera-head">
-          <strong>Pakketcamera</strong>
-          <span>Onderste lens · 16:9 livebeeld</span>
-        </div>
+        <div class="camera-head"><strong>Pakketcamera</strong><span>Onderste lens · 16:9</span></div>
         <div class="camera-view bottom">
           <img id="bottomStream" class="crop-source" alt="Livebeeld pakketcamera">
-          <div class="placeholder dual-placeholder">
-            <div><strong>Livebeeld staat uit</strong>Druk op “Live bekijken”.</div>
-          </div>
+          <div class="placeholder dual-placeholder"><div><strong>Livebeeld staat uit</strong>Druk op “Live bekijken”.</div></div>
         </div>
       </article>
     </section>
@@ -201,7 +72,6 @@
       <button id="start">▶ Live bekijken</button>
       <button id="stop" disabled>■ Stop</button>
     </div>
-
     <div id="error" class="error"></div>
 
     <details>
@@ -213,6 +83,7 @@
         <div class="kv"><span>Actieve videobron</span><b id="selected">-</b></div>
         <div class="kv"><span>Gedetecteerde bronnen</span><b id="sources">-</b></div>
         <div class="kv"><span>Frames</span><b id="frames">-</b></div>
+        <div class="kv"><span>Automatische herstarts</span><b id="restarts">0</b></div>
         <div class="kv"><span>Kijkers</span><b id="clients">-</b></div>
       </section>
     </details>
@@ -227,6 +98,7 @@
     const errorBox = $('error');
     const placeholders = [...document.querySelectorAll('.dual-placeholder')];
     let lastActive = false;
+    let imageRetryTimer = null;
 
     async function api(path, options = {}) {
       const response = await fetch(path, { cache:'no-store', ...options });
@@ -235,7 +107,8 @@
       return data;
     }
 
-    function showStreams() {
+    function showStreams(force = false) {
+      if (!force && topStream.hasAttribute('src') && bottomStream.hasAttribute('src')) return;
       const stamp = Date.now();
       topStream.src = '/stream.mjpg?view=top&t=' + stamp;
       bottomStream.src = '/stream.mjpg?view=bottom&t=' + stamp;
@@ -252,25 +125,41 @@
       placeholders.forEach((p) => p.style.display = 'grid');
     }
 
+    function retryImages() {
+      if (!lastActive || imageRetryTimer) return;
+      imageRetryTimer = setTimeout(() => {
+        imageRetryTimer = null;
+        if (lastActive) showStreams(true);
+      }, 1200);
+    }
+
+    topStream.addEventListener('error', retryImages);
+    bottomStream.addEventListener('error', retryImages);
+
     async function refresh() {
       try {
         const s = await api('/api/status');
         const ready = s.wsConnected && s.listening && s.serialConfigured;
         const sourceCount = Object.keys(s.streams || {}).length;
 
-        $('badge').textContent = s.active ? (s.frames > 0 ? '● Live' : '● Verbinden…') : (ready ? 'Gereed' : 'Niet gereed');
+        if (!s.active) $('badge').textContent = ready ? 'Gereed' : 'Niet gereed';
+        else if (s.recovering) $('badge').textContent = '● Herverbinden…';
+        else if (s.streamHealthy) $('badge').textContent = '● Live';
+        else $('badge').textContent = '● Verbinden…';
+
         $('ws').textContent = s.wsConnected ? 'Verbonden' : 'Niet verbonden';
-        $('active').textContent = s.active ? 'Live' : 'Gestopt';
+        $('active').textContent = !s.active ? 'Gestopt' : (s.streamHealthy ? 'Live' : 'Herstellen…');
         $('source').textContent = s.codec ? `${s.codec} ${s.width || '?'}×${s.height || '?'} ${s.fps || '?'}fps` : '-';
         $('selected').textContent = s.selectedStream || (s.active ? 'Automatisch zoeken…' : '-');
         $('sources').textContent = sourceCount ? String(sourceCount) : '-';
         $('frames').textContent = s.frames ?? 0;
+        $('restarts').textContent = s.restartCount ?? 0;
         $('clients').textContent = s.clients ?? 0;
 
         startBtn.disabled = !ready || s.active;
         stopBtn.disabled = !s.active;
 
-        if (s.active && !lastActive) showStreams();
+        if (s.active && !lastActive) showStreams(true);
         if (!s.active && lastActive) hideStreams();
         lastActive = s.active;
 
@@ -292,8 +181,8 @@
       errorBox.style.display = 'none';
       try {
         await api('/api/start', { method:'POST' });
-        showStreams();
         lastActive = true;
+        showStreams(true);
       } catch (error) {
         errorBox.textContent = error.message;
         errorBox.style.display = 'block';
@@ -304,8 +193,8 @@
     stopBtn.addEventListener('click', async () => {
       stopBtn.disabled = true;
       try { await api('/api/stop', { method:'POST' }); } catch {}
-      hideStreams();
       lastActive = false;
+      hideStreams();
       refresh();
     });
 
