@@ -21,10 +21,10 @@
     .security-main { display:flex; gap:12px; align-items:center; }
     .shield { width:44px; height:44px; border-radius:14px; display:grid; place-items:center; background:#242a34; font-size:22px; }
     .security-title { font-weight:750; }
-    .security-sub { color:var(--muted); font-size:13px; margin-top:3px; }
+    .security-sub { color:var(--muted); font-size:13px; margin-top:3px; max-width:680px; }
     .security-stats { display:flex; gap:8px; flex-wrap:wrap; }
     .pill { border:1px solid #303846; background:#20252e; border-radius:999px; padding:7px 10px; color:#b9c3d4; font-size:12px; }
-    .pill.motion { color:#111; background:#f6c453; border-color:#f6c453; }
+    .pill.trigger { color:#111; background:#f6c453; border-color:#f6c453; }
     .pill.recording { color:#fff; background:#9e2635; border-color:#b63243; }
     .camera-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:start; }
     .camera-card { background:var(--card); border:1px solid var(--line); border-radius:18px; overflow:hidden; box-shadow:0 18px 60px rgba(0,0,0,.25); }
@@ -46,6 +46,7 @@
     #stop { background:#2b3039; color:#fff; }
     #security { background:#235d3b; color:#eafff1; }
     #security.off { background:#762d38; color:#fff; }
+    #testTrigger { background:#72581d; color:#fff4cd; }
     .error { display:none; margin-top:12px; padding:12px 14px; border-radius:12px; background:#341c20; color:#ffd1d7; border:1px solid #63323a; white-space:pre-wrap; }
     .section-head { display:flex; align-items:end; justify-content:space-between; gap:12px; margin:28px 0 12px; }
     .section-head p { margin:3px 0 0; color:var(--muted); font-size:13px; }
@@ -57,6 +58,8 @@
     .recording-size { color:var(--muted); font-size:12px; margin-top:3px; }
     .delete { padding:8px 10px; background:#2a2f38; color:#dce3ee; font-size:12px; }
     .empty { border:1px dashed #343c49; border-radius:15px; padding:28px; color:var(--muted); text-align:center; grid-column:1/-1; }
+    .info { margin-top:14px; border:1px solid #2a3340; border-radius:14px; background:#151a21; padding:13px 15px; color:#aeb8c8; font-size:13px; line-height:1.5; }
+    code { background:#222833; border-radius:6px; padding:2px 5px; color:#e5ebf5; }
     details { margin-top:18px; border:1px solid #282e38; border-radius:14px; background:var(--card); overflow:hidden; }
     summary { cursor:pointer; padding:13px 16px; color:#aeb6c5; user-select:none; }
     .details { padding:0 16px 15px; display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:12px; font-size:13px; }
@@ -67,35 +70,144 @@
 </head>
 <body>
 <main class="app">
-  <div class="topbar"><div><h1>Voordeur</h1><div class="sub">Eufy Dual · eigen beveiliging & opnames</div></div><div id="badge" class="badge">Verbinden…</div></div>
+  <div class="topbar"><div><h1>Voordeur</h1><div class="sub">Eufy Dual · zuinige beveiliging & opnames</div></div><div id="badge" class="badge">Verbinden…</div></div>
+
   <section class="security-card">
-    <div class="security-main"><div class="shield">🛡️</div><div><div id="securityTitle" class="security-title">Beveiliging uit</div><div id="securitySub" class="security-sub">Bewegingsdetectie staat uit.</div></div></div>
-    <div class="security-stats"><span id="motionPill" class="pill">Beweging 0.00%</span><span id="recordingPill" class="pill">Geen opname</span><span id="storagePill" class="pill">0 opnames</span></div>
+    <div class="security-main">
+      <div class="shield">🛡️</div>
+      <div>
+        <div id="securityTitle" class="security-title">Beveiliging uit</div>
+        <div id="securitySub" class="security-sub">De camera is alleen actief wanneer je handmatig live kijkt.</div>
+      </div>
+    </div>
+    <div class="security-stats">
+      <span id="triggerPill" class="pill">Wacht op sensor</span>
+      <span id="recordingPill" class="pill">Geen opname</span>
+      <span id="storagePill" class="pill">0 opnames</span>
+    </div>
   </section>
+
   <section class="camera-grid">
-    <article class="camera-card"><div class="camera-head"><strong>Hoofdcamera</strong><span>Bovenste lens · 4:3</span></div><div class="camera-view top"><img id="topStream" class="crop-source" alt="Livebeeld hoofdcamera"><div class="placeholder dual-placeholder"><div><strong>Livebeeld staat uit</strong>Druk op “Live bekijken” of zet beveiliging aan.</div></div></div></article>
-    <article class="camera-card"><div class="camera-head"><strong>Pakketcamera</strong><span>Onderste lens · 16:9</span></div><div class="camera-view bottom"><img id="bottomStream" class="crop-source" alt="Livebeeld pakketcamera"><div class="placeholder dual-placeholder"><div><strong>Livebeeld staat uit</strong>Druk op “Live bekijken” of zet beveiliging aan.</div></div></div></article>
+    <article class="camera-card">
+      <div class="camera-head"><strong>Hoofdcamera</strong><span>Bovenste lens · 4:3</span></div>
+      <div class="camera-view top"><img id="topStream" class="crop-source" alt="Livebeeld hoofdcamera"><div class="placeholder dual-placeholder"><div><strong>Camera slaapt</strong>Dat spaart de accu. Gebruik “Live bekijken” of een bewegingstrigger.</div></div></div>
+    </article>
+    <article class="camera-card">
+      <div class="camera-head"><strong>Pakketcamera</strong><span>Onderste lens · 16:9</span></div>
+      <div class="camera-view bottom"><img id="bottomStream" class="crop-source" alt="Livebeeld pakketcamera"><div class="placeholder dual-placeholder"><div><strong>Camera slaapt</strong>Bij beweging wordt hij automatisch tijdelijk wakker.</div></div></div>
+    </article>
   </section>
-  <div class="controls"><button id="security">🛡 Beveiliging inschakelen</button><button id="start">▶ Live bekijken</button><button id="stop" disabled>■ Stop</button></div>
+
+  <div class="controls">
+    <button id="security">🛡 Beveiliging inschakelen</button>
+    <button id="testTrigger">⚡ Test beweging</button>
+    <button id="start">▶ Live bekijken</button>
+    <button id="stop" disabled>■ Stop</button>
+  </div>
+
+  <div class="info">In de zuinige modus blijft de deurbelstream <strong>uit</strong>. Een externe bewegingssensor kan straks een opname starten met <code>POST /api/trigger</code>. De knop “Test beweging” doet nu exact hetzelfde, zodat we het systeem alvast kunnen testen.</div>
   <div id="error" class="error"></div>
-  <div class="section-head"><div><h2>Opnames</h2><p>Automatisch opgeslagen wanneer onze eigen detectie beweging ziet.</p></div><div id="retention" class="pill">14 dagen bewaren</div></div>
+
+  <div class="section-head"><div><h2>Opnames</h2><p>De camera wordt alleen tijdelijk wakker na een bewegingstrigger.</p></div><div id="retention" class="pill">14 dagen bewaren</div></div>
   <section id="recordings" class="recordings"><div class="empty">Nog geen bewegingsopnames.</div></section>
+
   <details><summary>Technische informatie</summary><section class="details">
-    <div class="kv"><span>Eufy verbinding</span><b id="ws">-</b></div><div class="kv"><span>Viewer</span><b id="active">-</b></div><div class="kv"><span>Ontvangen</span><b id="source">-</b></div><div class="kv"><span>Actieve videobron</span><b id="selected">-</b></div><div class="kv"><span>Frames</span><b id="frames">-</b></div><div class="kv"><span>Kijkers</span><b id="clients">-</b></div><div class="kv"><span>Automatische herstarts</span><b id="restarts">-</b></div><div class="kv"><span>Laatste beweging</span><b id="lastMotion">-</b></div>
+    <div class="kv"><span>Eufy verbinding</span><b id="ws">-</b></div>
+    <div class="kv"><span>Viewer</span><b id="active">-</b></div>
+    <div class="kv"><span>Ontvangen</span><b id="source">-</b></div>
+    <div class="kv"><span>Actieve videobron</span><b id="selected">-</b></div>
+    <div class="kv"><span>Frames</span><b id="frames">-</b></div>
+    <div class="kv"><span>Kijkers</span><b id="clients">-</b></div>
+    <div class="kv"><span>Automatische herstarts</span><b id="restarts">-</b></div>
+    <div class="kv"><span>Laatste trigger</span><b id="lastTrigger">-</b></div>
+    <div class="kv"><span>Triggerbron</span><b id="triggerSource">-</b></div>
+    <div class="kv"><span>Opnameduur</span><b id="eventSeconds">-</b></div>
   </section></details>
 </main>
+
 <script>
-const $=id=>document.getElementById(id),startBtn=$('start'),stopBtn=$('stop'),securityBtn=$('security'),topStream=$('topStream'),bottomStream=$('bottomStream'),errorBox=$('error'),placeholders=[...document.querySelectorAll('.dual-placeholder')];let lastActive=false,lastRecordingCount=-1;
+const $=id=>document.getElementById(id),startBtn=$('start'),stopBtn=$('stop'),securityBtn=$('security'),testBtn=$('testTrigger'),topStream=$('topStream'),bottomStream=$('bottomStream'),errorBox=$('error'),placeholders=[...document.querySelectorAll('.dual-placeholder')];
+let lastActive=false,lastRecordingCount=-1;
+
 async function api(path,options={}){const r=await fetch(path,{cache:'no-store',...options}),d=await r.json();if(!r.ok)throw new Error(d.error||'Onbekende fout');return d}
 function showStreams(){const t=Date.now();topStream.src='/stream.mjpg?view=top&t='+t;bottomStream.src='/stream.mjpg?view=bottom&t='+t;topStream.style.display='block';bottomStream.style.display='block';placeholders.forEach(p=>p.style.display='none')}
 function hideStreams(){topStream.removeAttribute('src');bottomStream.removeAttribute('src');topStream.style.display='none';bottomStream.style.display='none';placeholders.forEach(p=>p.style.display='grid')}
 function fmtBytes(b){if(!b)return'0 MB';if(b<1024**2)return Math.round(b/1024)+' KB';if(b<1024**3)return(b/1024**2).toFixed(1)+' MB';return(b/1024**3).toFixed(2)+' GB'}
 function fmtDate(v){return v?new Date(v).toLocaleString('nl-NL',{dateStyle:'short',timeStyle:'medium'}):'-'}
-async function loadRecordings(){try{const d=await api('/api/recordings'),list=d.recordings||[],root=$('recordings');if(!list.length){root.innerHTML='<div class="empty">Nog geen bewegingsopnames.</div>';return}root.innerHTML=list.slice(0,50).map(i=>`<article class="recording-card"><video controls preload="metadata" ${i.thumbnailUrl?`poster="${i.thumbnailUrl}"`:''} src="${i.videoUrl}"></video><div class="recording-meta"><div><div class="recording-time">${fmtDate(i.createdAt)}</div><div class="recording-size">${fmtBytes(i.size)}</div></div><button class="delete" data-name="${i.name}">Verwijderen</button></div></article>`).join('');root.querySelectorAll('.delete').forEach(b=>b.addEventListener('click',async()=>{if(!confirm('Deze opname verwijderen?'))return;await api('/api/recordings/'+encodeURIComponent(b.dataset.name),{method:'DELETE'});loadRecordings()}))}catch(e){console.warn(e)}}
-async function refresh(){try{const s=await api('/api/status'),sec=s.security||{},ready=s.wsConnected&&s.listening&&s.serialConfigured,healthy=s.streamHealthy;$('badge').className='badge '+(healthy?'good':(s.recovering?'warn':(!ready?'danger':'')));$('badge').textContent=s.active?(healthy?'● Live':(s.recovering?'● Herverbinden…':'● Verbinden…')):(ready?'Gereed':'Niet gereed');$('ws').textContent=s.wsConnected?'Verbonden':'Niet verbonden';$('active').textContent=s.active?(healthy?'Live':'Herstellen'):'Gestopt';$('source').textContent=s.codec?`${s.codec} ${s.width||'?'}×${s.height||'?'} ${s.fps||'?'}fps`:'-';$('selected').textContent=s.selectedStream||(s.active?'Automatisch zoeken…':'-');$('frames').textContent=s.frames??0;$('clients').textContent=s.clients??0;$('restarts').textContent=s.restartCount??0;$('lastMotion').textContent=sec.lastMotionAt?fmtDate(sec.lastMotionAt):'-';$('retention').textContent=`${sec.retentionDays||14} dagen bewaren`;$('securityTitle').textContent=sec.securityEnabled?'Beveiliging actief':'Beveiliging uit';$('securitySub').textContent=sec.securityEnabled?'De deurbelstream wordt continu bewaakt op beweging.':'Bewegingsdetectie staat uit.';securityBtn.textContent=sec.securityEnabled?'🛡 Beveiliging uitschakelen':'🛡 Beveiliging inschakelen';securityBtn.classList.toggle('off',!!sec.securityEnabled);const mp=$('motionPill');mp.textContent=`Beweging ${(sec.motionScore||0).toFixed(2)}%`;mp.classList.toggle('motion',!!sec.motionActive);const rp=$('recordingPill');rp.textContent=sec.recording?'● Opname bezig':'Geen opname';rp.classList.toggle('recording',!!sec.recording);$('storagePill').textContent=`${sec.recordingsCount||0} opnames · ${fmtBytes(sec.storageBytes||0)}`;startBtn.disabled=!ready||s.active;stopBtn.disabled=!s.active||sec.securityEnabled;securityBtn.disabled=!ready&&!sec.securityEnabled;if(s.active&&!lastActive)showStreams();if(!s.active&&lastActive)hideStreams();lastActive=s.active;if((sec.recordingsCount??0)!==lastRecordingCount){lastRecordingCount=sec.recordingsCount??0;loadRecordings()}const err=sec.lastError||s.lastError;if(err){errorBox.textContent=err;errorBox.style.display='block'}else errorBox.style.display='none'}catch(e){$('badge').textContent='Paginafout';$('badge').className='badge danger';errorBox.textContent=e.message;errorBox.style.display='block'}}
+
+async function loadRecordings(){
+  try{
+    const d=await api('/api/recordings'),list=d.recordings||[],root=$('recordings');
+    if(!list.length){root.innerHTML='<div class="empty">Nog geen bewegingsopnames.</div>';return}
+    root.innerHTML=list.slice(0,50).map(i=>`<article class="recording-card"><video controls preload="metadata" ${i.thumbnailUrl?`poster="${i.thumbnailUrl}"`:''} src="${i.videoUrl}"></video><div class="recording-meta"><div><div class="recording-time">${fmtDate(i.createdAt)}</div><div class="recording-size">${fmtBytes(i.size)}</div></div><button class="delete" data-name="${i.name}">Verwijderen</button></div></article>`).join('');
+    root.querySelectorAll('.delete').forEach(b=>b.addEventListener('click',async()=>{if(!confirm('Deze opname verwijderen?'))return;await api('/api/recordings/'+encodeURIComponent(b.dataset.name),{method:'DELETE'});loadRecordings()}));
+  }catch(e){console.warn(e)}
+}
+
+async function refresh(){
+  try{
+    const s=await api('/api/status'),sec=s.security||{},ready=s.wsConnected&&s.listening&&s.serialConfigured,healthy=s.streamHealthy;
+
+    if(sec.eventActive){
+      $('badge').className='badge '+(healthy?'good':'warn');
+      $('badge').textContent=sec.recording?'● Opname':'● Camera wakker maken…';
+    }else if(sec.securityEnabled&&!s.active){
+      $('badge').className='badge good';
+      $('badge').textContent='🛡 Stand-by';
+    }else{
+      $('badge').className='badge '+(healthy?'good':(s.recovering?'warn':(!ready?'danger':'')));
+      $('badge').textContent=s.active?(healthy?'● Live':(s.recovering?'● Herverbinden…':'● Verbinden…')):(ready?'Gereed':'Niet gereed');
+    }
+
+    $('ws').textContent=s.wsConnected?'Verbonden':'Niet verbonden';
+    $('active').textContent=s.active?(healthy?'Live':'Herstellen'):(sec.securityEnabled?'Slapend':'Gestopt');
+    $('source').textContent=s.codec?`${s.codec} ${s.width||'?'}×${s.height||'?'} ${s.fps||'?'}fps`:'-';
+    $('selected').textContent=s.selectedStream||(s.active?'Automatisch zoeken…':'-');
+    $('frames').textContent=s.frames??0;
+    $('clients').textContent=s.clients??0;
+    $('restarts').textContent=s.restartCount??0;
+    $('lastTrigger').textContent=sec.lastTriggerAt?fmtDate(sec.lastTriggerAt):'-';
+    $('triggerSource').textContent=sec.lastTriggerSource||'-';
+    $('eventSeconds').textContent=`${sec.eventSeconds||30} sec`;
+    $('retention').textContent=`${sec.retentionDays||14} dagen bewaren`;
+
+    $('securityTitle').textContent=sec.securityEnabled?'Beveiliging actief · zuinige modus':'Beveiliging uit';
+    $('securitySub').textContent=sec.securityEnabled?(sec.eventActive?'Beweging gemeld: de camera is tijdelijk wakker voor de opname.':'Camera slaapt en wacht op een externe bewegingssensor.'):'De camera is alleen actief wanneer je handmatig live kijkt.';
+    securityBtn.textContent=sec.securityEnabled?'🛡 Beveiliging uitschakelen':'🛡 Beveiliging inschakelen';
+    securityBtn.classList.toggle('off',!!sec.securityEnabled);
+
+    const tp=$('triggerPill');
+    tp.textContent=sec.eventActive?'Beweging gedetecteerd':(sec.lastTriggerAt?'Laatste trigger '+new Date(sec.lastTriggerAt).toLocaleTimeString('nl-NL'):'Wacht op sensor');
+    tp.classList.toggle('trigger',!!sec.eventActive);
+
+    const rp=$('recordingPill');
+    rp.textContent=sec.recording?'● Opname bezig':'Geen opname';
+    rp.classList.toggle('recording',!!sec.recording);
+    $('storagePill').textContent=`${sec.recordingsCount||0} opnames · ${fmtBytes(sec.storageBytes||0)}`;
+
+    startBtn.disabled=!ready||s.active;
+    stopBtn.disabled=!s.active||sec.eventActive;
+    securityBtn.disabled=!ready&&!sec.securityEnabled;
+    testBtn.disabled=!ready||!sec.securityEnabled;
+
+    if(s.active&&!lastActive)showStreams();
+    if(!s.active&&lastActive)hideStreams();
+    lastActive=s.active;
+
+    if((sec.recordingsCount??0)!==lastRecordingCount){lastRecordingCount=sec.recordingsCount??0;loadRecordings()}
+
+    const err=sec.lastError||s.lastError;
+    if(err){errorBox.textContent=err;errorBox.style.display='block'}else errorBox.style.display='none';
+  }catch(e){
+    $('badge').textContent='Paginafout';$('badge').className='badge danger';errorBox.textContent=e.message;errorBox.style.display='block';
+  }
+}
+
 securityBtn.addEventListener('click',async()=>{securityBtn.disabled=true;try{const s=await api('/api/status'),on=!!s.security?.securityEnabled;await api(on?'/api/security/off':'/api/security/on',{method:'POST'})}catch(e){errorBox.textContent=e.message;errorBox.style.display='block'}refresh()});
+testBtn.addEventListener('click',async()=>{testBtn.disabled=true;try{await api('/api/trigger?source=test-knop',{method:'POST'})}catch(e){errorBox.textContent=e.message;errorBox.style.display='block'}refresh()});
 startBtn.addEventListener('click',async()=>{startBtn.disabled=true;try{await api('/api/start',{method:'POST'});showStreams();lastActive=true}catch(e){errorBox.textContent=e.message;errorBox.style.display='block'}refresh()});
-stopBtn.addEventListener('click',async()=>{stopBtn.disabled=true;try{await api('/api/stop',{method:'POST'})}catch(e){errorBox.textContent=e.message;errorBox.style.display='block'}hideStreams();lastActive=false;refresh()});
+stopBtn.addEventListener('click',async()=>{stopBtn.disabled=true;try{await api('/api/stop',{method:'POST'})}catch(e){errorBox.textContent=e.message;errorBox.style.display='block'}refresh()});
+
 refresh();loadRecordings();setInterval(refresh,1000);setInterval(loadRecordings,15000);
 </script>
 </body>
