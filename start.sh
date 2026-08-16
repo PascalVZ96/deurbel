@@ -5,9 +5,8 @@ VIEWER_PORT="${VIEWER_PORT:-8092}"
 WEB_PORT="${WEB_PORT:-8090}"
 
 cleanup() {
-  if [ -n "${VIEWER_PID:-}" ]; then
-    kill "$VIEWER_PID" 2>/dev/null || true
-  fi
+  [ -n "${SECURITY_PID:-}" ] && kill "$SECURITY_PID" 2>/dev/null || true
+  [ -n "${VIEWER_PID:-}" ] && kill "$VIEWER_PID" 2>/dev/null || true
 }
 trap cleanup INT TERM EXIT
 
@@ -15,8 +14,10 @@ trap cleanup INT TERM EXIT
 WEB_PORT="$VIEWER_PORT" node src/server.mjs &
 VIEWER_PID=$!
 
-# Geef de interne viewer kort tijd om te luisteren.
 sleep 1
 
-# Het beveiligingsdashboard is het publieke proces op poort 8090.
-WEB_PORT="$WEB_PORT" VIEWER_PORT="$VIEWER_PORT" node src/security-monitor.mjs
+# Het beveiligingsdashboard is publiek op poort 8090.
+WEB_PORT="$WEB_PORT" VIEWER_PORT="$VIEWER_PORT" node src/security-monitor.mjs &
+SECURITY_PID=$!
+
+wait "$SECURITY_PID"
