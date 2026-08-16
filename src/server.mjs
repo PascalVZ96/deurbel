@@ -29,11 +29,10 @@ const state = {
   height: null,
   fps: null,
   inputBytes: 0,
-  layer0Bytes: 0,
-  totalNals: 0,
-  keptNals: 0,
   frames: 0,
   clients: 0,
+  selectedStream: null,
+  streams: {},
   lastError: null,
   lastFfmpeg: null,
   startedAt: null,
@@ -42,10 +41,7 @@ const state = {
 let ws = null;
 let reconnectTimer = null;
 let autoStopTimer = null;
-let ffmpeg = null;
-let ffmpegStdin = null;
-let pending = Buffer.alloc(0);
-let jpegPending = Buffer.alloc(0);
+const decoders = new Map();
 const mjpegClients = new Set();
 
 function json(res, status, body) {
@@ -77,13 +73,10 @@ function clearCounters() {
   state.height = null;
   state.fps = null;
   state.inputBytes = 0;
-  state.layer0Bytes = 0;
-  state.totalNals = 0;
-  state.keptNals = 0;
   state.frames = 0;
+  state.selectedStream = null;
+  state.streams = {};
   state.lastFfmpeg = null;
-  pending = Buffer.alloc(0);
-  jpegPending = Buffer.alloc(0);
 }
 
 function send(command, data = {}, messageId = `${command}-${Date.now()}`) {
@@ -160,6 +153,17 @@ function getBuffer(value) {
   return null;
 }
 
+function streamKey(codec, width, height, fps) {
+  return `${codec || 'video'}:${width || '?'}x${height || '?'}:${fps || '?'}fps`;
+}
+
+function inputFormat(codec) {
+  const value = String(codec || '').toUpperCase();
+  if (value.includes('265') || value.includes('HEVC')) return 'hevc';
+  if (value.includes('264') || value.includes('AVC')) return 'h264';
+  return 'hevc';
+}
+
 function handleEufyMessage(msg) {
   if (msg.type === 'result') {
     if (msg.messageId === 'viewer-start-listening' && msg.success !== false) {
@@ -171,26 +175,19 @@ function handleEufyMessage(msg) {
     if (msg.success === false) {
       const code = msg.errorCode || 'onbekende_fout';
 
-      // Deze fout betekent meestal dat een vorige sessie nog als actief gemarkeerd staat.
-      // We blijven dan luisteren naar videodata in plaats van de viewer direct af te breken.
       if (code === 'device_livestream_already_running') {
         console.warn('Eufy meldt dat de livestream al draait; viewer blijft luisteren.');
         state.eufyRunning = true;
         return;
       }
 
-      if (code === 'device_livestream_not_running' && !state.active) {
-        return;
-      }
-
+      if (code === 'device_livestream_not_running' && !state.active) return;
       setError(`Eufy: ${code}`);
     }
-
     return;
   }
 
   if (msg.type !== 'event' || !msg.event) return;
-
   const event = msg.event;
 
   if (event.source !== 'device' || event.serialNumber !== config.serial) return;
@@ -207,115 +204,63 @@ function handleEufyMessage(msg) {
     return;
   }
 
-  if (event.event === 'livestream video data') {
-    const buffer = getBuffer(event.buffer);
-    if (!buffer?.length || !state.active) return;
+  if (event.event !== 'livestream video data' || !state.active) return;
 
-    const metadata = event.metadata || {};
-    state.codec = metadata.videoCodec || state.codec;
-    state.width = metadata.videoWidth || state.width;
-    state.height = metadata.videoHeight || state.height;
-    state.fps = metadata.videoFPS || state.fps;
-    state.inputBytes += buffer.length;
+  const buffer = getBuffer(event.buffer);
+  if (!buffer?.length) return;
 
-    processVideoChunk(buffer);
+  const metadata = event.metadata || {};
+  const codec = metadata.videoCodec || state.codec || 'H265';
+  const width = Number(metadata.videoWidth || state.width || 0);
+  const height = Number(metadata.videoHeight || state.height || 0);
+  const fps = Number(metadata.videoFPS || state.fps || 15);
+
+  state.codec = codec;
+  state.width = width || state.width;
+  state.height = height || state.height;
+  state.fps = fps || state.fps;
+  state.inputBytes += buffer.length;
+
+  const key = streamKey(codec, width, height, fps);
+  let stats = state.streams[key];
+  if (!stats) {
+    stats = state.streams[key] = {
+      codec,
+      width,
+      height,
+      fps,
+      chunks: 0,
+      bytes: 0,
+      frames: 0,
+      droppedChunks: 0,
+      ffmpegRunning: false,
+      lastFfmpeg: null,
+    };
+    console.log(`Nieuwe videobron: ${key}`);
   }
+
+  stats.chunks++;
+  stats.bytes += buffer.length;
+  feedDecoder(key, codec, fps, buffer);
 }
 
-function findStartCodes(buf) {
-  const result = [];
-  let i = 0;
-
-  while (i <= buf.length - 3) {
-    if (
-      i <= buf.length - 4 &&
-      buf[i] === 0x00 &&
-      buf[i + 1] === 0x00 &&
-      buf[i + 2] === 0x00 &&
-      buf[i + 3] === 0x01
-    ) {
-      result.push({ pos: i, len: 4 });
-      i += 4;
-      continue;
-    }
-
-    if (
-      buf[i] === 0x00 &&
-      buf[i + 1] === 0x00 &&
-      buf[i + 2] === 0x01
-    ) {
-      result.push({ pos: i, len: 3 });
-      i += 3;
-      continue;
-    }
-
-    i++;
-  }
-
-  return result;
-}
-
-function getLayerId(nal, startCodeLength) {
-  const header = startCodeLength;
-  if (header + 2 > nal.length) return null;
-
-  const b0 = nal[header];
-  const b1 = nal[header + 1];
-  return ((b0 & 0x01) << 5) | ((b1 >> 3) & 0x1f);
-}
-
-function processVideoChunk(chunk) {
-  pending = Buffer.concat([pending, chunk]);
-
-  // Bescherming tegen een beschadigde stream zonder Annex-B startcodes.
-  if (pending.length > 16 * 1024 * 1024) {
-    pending = pending.subarray(-1024 * 1024);
-  }
-
-  let starts = findStartCodes(pending);
-  if (starts.length < 2) return;
-
-  // Gooi eventuele bytes vóór de eerste echte startcode weg.
-  if (starts[0].pos > 0) {
-    pending = pending.subarray(starts[0].pos);
-    starts = findStartCodes(pending);
-    if (starts.length < 2) return;
-  }
-
-  for (let i = 0; i < starts.length - 1; i++) {
-    const startInfo = starts[i];
-    const start = startInfo.pos;
-    const end = starts[i + 1].pos;
-    const nal = pending.subarray(start, end);
-
-    state.totalNals++;
-
-    if (getLayerId(nal, startInfo.len) === 0) {
-      state.keptNals++;
-      state.layer0Bytes += nal.length;
-
-      if (ffmpegStdin && !ffmpegStdin.destroyed) {
-        ffmpegStdin.write(nal);
-      }
-    }
-  }
-
-  pending = pending.subarray(starts.at(-1).pos);
-}
-
-function startFfmpeg() {
-  if (ffmpeg && !ffmpeg.killed) return;
+function startDecoder(key, codec, fps) {
+  const existing = decoders.get(key);
+  if (existing?.process && !existing.process.killed) return existing;
 
   const outputFps = Math.max(1, Math.min(15, config.mjpegFps));
   const quality = Math.max(2, Math.min(31, config.mjpegQuality));
+  const inputFps = Math.max(1, Math.min(30, Number(fps) || 15));
+  const format = inputFormat(codec);
 
-  console.log(`FFmpeg starten: MJPEG ${outputFps} fps, kwaliteit ${quality}`);
+  console.log(`FFmpeg bron starten: ${key}`);
 
-  ffmpeg = spawn('ffmpeg', [
+  const child = spawn('ffmpeg', [
     '-hide_banner',
     '-loglevel', 'warning',
-    '-f', 'hevc',
-    '-r', '15',
+    '-fflags', '+genpts+discardcorrupt',
+    '-f', format,
+    '-r', String(inputFps),
     '-i', 'pipe:0',
     '-an',
     '-vf', `fps=${outputFps}`,
@@ -323,53 +268,101 @@ function startFfmpeg() {
     '-f', 'image2pipe',
     '-vcodec', 'mjpeg',
     'pipe:1',
-  ], {
-    stdio: ['pipe', 'pipe', 'pipe'],
+  ], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+  const decoder = {
+    key,
+    process: child,
+    stdin: child.stdin,
+    jpegPending: Buffer.alloc(0),
+    blocked: false,
+    frames: 0,
+    lastFrameAt: 0,
+  };
+
+  decoders.set(key, decoder);
+  state.ffmpegRunning = true;
+  if (state.streams[key]) state.streams[key].ffmpegRunning = true;
+
+  child.stdin.on('drain', () => {
+    decoder.blocked = false;
   });
 
-  ffmpegStdin = ffmpeg.stdin;
-  state.ffmpegRunning = true;
+  child.stdout.on('data', (chunk) => parseJpegOutput(decoder, chunk));
 
-  ffmpeg.stdout.on('data', parseJpegOutput);
-
-  ffmpeg.stderr.on('data', (chunk) => {
+  child.stderr.on('data', (chunk) => {
     const text = chunk.toString().trim();
     if (!text) return;
-    state.lastFfmpeg = text.slice(-1000);
-    console.warn(`[ffmpeg] ${text}`);
+    const clipped = text.slice(-1200);
+    state.lastFfmpeg = `[${key}] ${clipped}`;
+    if (state.streams[key]) state.streams[key].lastFfmpeg = clipped;
+    console.warn(`[ffmpeg ${key}] ${text}`);
   });
 
-  ffmpeg.on('error', (error) => {
-    setError(`FFmpeg kon niet starten: ${error.message}`);
+  child.on('error', (error) => {
+    setError(`FFmpeg kon bron ${key} niet starten: ${error.message}`);
   });
 
-  ffmpeg.on('exit', (code, signal) => {
-    console.log(`FFmpeg gestopt (code=${code}, signal=${signal})`);
-    state.ffmpegRunning = false;
-    ffmpeg = null;
-    ffmpegStdin = null;
+  child.on('exit', (code, signal) => {
+    console.log(`FFmpeg bron gestopt: ${key} (code=${code}, signal=${signal})`);
+    if (state.streams[key]) state.streams[key].ffmpegRunning = false;
+    decoder.process = null;
+    decoder.stdin = null;
+    state.ffmpegRunning = [...decoders.values()].some((d) => d.process && !d.process.killed);
   });
+
+  return decoder;
 }
 
-function parseJpegOutput(chunk) {
-  jpegPending = Buffer.concat([jpegPending, chunk]);
+function feedDecoder(key, codec, fps, buffer) {
+  const decoder = startDecoder(key, codec, fps);
+  if (!decoder.stdin || decoder.stdin.destroyed) return;
+
+  if (decoder.blocked) {
+    if (state.streams[key]) state.streams[key].droppedChunks++;
+    return;
+  }
+
+  try {
+    if (!decoder.stdin.write(buffer)) decoder.blocked = true;
+  } catch (error) {
+    if (state.streams[key]) state.streams[key].lastFfmpeg = error.message;
+  }
+}
+
+function parseJpegOutput(decoder, chunk) {
+  decoder.jpegPending = Buffer.concat([decoder.jpegPending, chunk]);
 
   while (true) {
-    const soi = jpegPending.indexOf(Buffer.from([0xff, 0xd8]));
+    const soi = decoder.jpegPending.indexOf(Buffer.from([0xff, 0xd8]));
     if (soi < 0) {
-      if (jpegPending.length > 2 * 1024 * 1024) jpegPending = Buffer.alloc(0);
+      if (decoder.jpegPending.length > 2 * 1024 * 1024) decoder.jpegPending = Buffer.alloc(0);
       return;
     }
 
-    if (soi > 0) jpegPending = jpegPending.subarray(soi);
+    if (soi > 0) decoder.jpegPending = decoder.jpegPending.subarray(soi);
 
-    const eoi = jpegPending.indexOf(Buffer.from([0xff, 0xd9]), 2);
+    const eoi = decoder.jpegPending.indexOf(Buffer.from([0xff, 0xd9]), 2);
     if (eoi < 0) return;
 
-    const frame = jpegPending.subarray(0, eoi + 2);
-    jpegPending = jpegPending.subarray(eoi + 2);
+    const frame = decoder.jpegPending.subarray(0, eoi + 2);
+    decoder.jpegPending = decoder.jpegPending.subarray(eoi + 2);
+
+    const now = Date.now();
+    decoder.frames++;
+    decoder.lastFrameAt = now;
     state.frames++;
-    broadcastJpeg(frame);
+    if (state.streams[decoder.key]) state.streams[decoder.key].frames++;
+
+    const selected = state.selectedStream ? decoders.get(state.selectedStream) : null;
+    if (!state.selectedStream || !selected?.lastFrameAt || now - selected.lastFrameAt > 2500) {
+      if (state.selectedStream !== decoder.key) {
+        console.log(`Actieve videobron: ${decoder.key}`);
+      }
+      state.selectedStream = decoder.key;
+    }
+
+    if (state.selectedStream === decoder.key) broadcastJpeg(frame);
   }
 }
 
@@ -390,17 +383,37 @@ function broadcastJpeg(frame) {
   }
 }
 
+function stopDecoders() {
+  for (const decoder of decoders.values()) {
+    if (decoder.stdin && !decoder.stdin.destroyed) {
+      try { decoder.stdin.end(); } catch {}
+    }
+
+    if (decoder.process && !decoder.process.killed) {
+      try { decoder.process.kill('SIGTERM'); } catch {}
+      const processToKill = decoder.process;
+      setTimeout(() => {
+        if (processToKill && !processToKill.killed) {
+          try { processToKill.kill('SIGKILL'); } catch {}
+        }
+      }, 1200);
+    }
+  }
+
+  decoders.clear();
+  state.ffmpegRunning = false;
+}
+
 async function startViewer() {
   if (!config.serial) throw new Error('EUFY_SERIAL ontbreekt in .env');
   if (!state.wsConnected || !state.listening) throw new Error('eufy-security-ws is nog niet klaar');
-
   if (state.active) return;
 
+  stopDecoders();
   clearCounters();
   state.active = true;
   state.startedAt = new Date().toISOString();
   state.lastError = null;
-  startFfmpeg();
 
   send('device.start_livestream', { serialNumber: config.serial });
 
@@ -430,19 +443,7 @@ async function stopViewer() {
   }
 
   state.eufyRunning = false;
-
-  if (ffmpegStdin && !ffmpegStdin.destroyed) {
-    try { ffmpegStdin.end(); } catch {}
-  }
-
-  if (ffmpeg) {
-    const processToKill = ffmpeg;
-    setTimeout(() => {
-      if (processToKill && !processToKill.killed) {
-        try { processToKill.kill('SIGKILL'); } catch {}
-      }
-    }, 1500);
-  }
+  stopDecoders();
 }
 
 const server = http.createServer(async (req, res) => {
