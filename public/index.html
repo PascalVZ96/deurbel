@@ -13,40 +13,134 @@
       background: #111318;
       color: #f5f7fb;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      display: grid;
-      place-items: center;
       padding: 24px;
     }
-    .app { width: min(100%, 860px); }
-    .topbar { display:flex; align-items:end; justify-content:space-between; gap:16px; margin-bottom:14px; }
+    .app { width: min(100%, 1180px); margin: 0 auto; }
+    .topbar {
+      display:flex;
+      align-items:end;
+      justify-content:space-between;
+      gap:16px;
+      margin-bottom:16px;
+    }
     h1 { margin:0; font-size:clamp(26px,5vw,42px); }
     .sub { margin-top:5px; color:#aeb6c5; }
-    .badge { padding:8px 12px; border-radius:999px; background:#242933; color:#c6cedd; font-size:13px; white-space:nowrap; }
-    .viewer {
-      position:relative; min-height:360px; aspect-ratio:16/10; background:#050607;
-      border:1px solid #2b313d; border-radius:18px; overflow:hidden; display:grid;
-      place-items:center; box-shadow:0 18px 60px rgba(0,0,0,.35);
+    .badge {
+      padding:8px 12px;
+      border-radius:999px;
+      background:#242933;
+      color:#c6cedd;
+      font-size:13px;
+      white-space:nowrap;
     }
-    #stream { width:100%; height:100%; object-fit:contain; display:none; background:#000; }
-    .placeholder { text-align:center; padding:24px; color:#9ea8ba; }
-    .placeholder strong { display:block; color:#fff; font-size:22px; margin-bottom:7px; }
-    .controls { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
-    button { border:0; border-radius:12px; padding:13px 18px; font:inherit; font-weight:700; cursor:pointer; }
+
+    .camera-grid {
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:16px;
+    }
+    .camera-card {
+      background:#191d24;
+      border:1px solid #2b313d;
+      border-radius:18px;
+      overflow:hidden;
+      box-shadow:0 18px 60px rgba(0,0,0,.28);
+    }
+    .camera-head {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:11px 14px;
+      font-size:14px;
+    }
+    .camera-head strong { font-size:15px; }
+    .camera-head span { color:#8f9aae; font-size:12px; }
+
+    .camera-view {
+      position:relative;
+      aspect-ratio:4 / 3;
+      overflow:hidden;
+      background:#050607;
+    }
+    .crop-source {
+      position:absolute;
+      left:0;
+      width:100%;
+      height:200%;
+      object-fit:fill;
+      display:none;
+      background:#000;
+    }
+    .camera-view.top .crop-source { top:0; }
+    .camera-view.bottom .crop-source { top:-100%; }
+
+    .placeholder {
+      position:absolute;
+      inset:0;
+      display:grid;
+      place-items:center;
+      text-align:center;
+      padding:24px;
+      color:#9ea8ba;
+    }
+    .placeholder strong {
+      display:block;
+      color:#fff;
+      font-size:18px;
+      margin-bottom:6px;
+    }
+
+    .controls { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+    button {
+      border:0;
+      border-radius:12px;
+      padding:13px 18px;
+      font:inherit;
+      font-weight:700;
+      cursor:pointer;
+    }
     button:disabled { opacity:.45; cursor:not-allowed; }
     #start { background:#fff; color:#101216; }
     #stop { background:#2b3039; color:#fff; }
+
+    details {
+      margin-top:14px;
+      border:1px solid #282e38;
+      border-radius:14px;
+      background:#191d24;
+      overflow:hidden;
+    }
+    summary {
+      cursor:pointer;
+      padding:13px 16px;
+      color:#aeb6c5;
+      user-select:none;
+    }
     .details {
-      margin-top:14px; padding:14px 16px; border-radius:14px; background:#191d24;
-      border:1px solid #282e38; display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr));
-      gap:12px; font-size:13px;
+      padding:0 16px 15px;
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(145px,1fr));
+      gap:12px;
+      font-size:13px;
     }
     .kv span { display:block; color:#8893a6; margin-bottom:3px; }
     .kv b { font-weight:600; word-break:break-word; }
-    .error { display:none; margin-top:12px; padding:12px 14px; border-radius:12px; background:#341c20; color:#ffd1d7; border:1px solid #63323a; white-space:pre-wrap; }
-    @media (max-width:600px) {
+    .error {
+      display:none;
+      margin-top:12px;
+      padding:12px 14px;
+      border-radius:12px;
+      background:#341c20;
+      color:#ffd1d7;
+      border:1px solid #63323a;
+      white-space:pre-wrap;
+    }
+
+    @media (max-width:760px) {
       body { padding:12px; }
       .topbar { align-items:start; flex-direction:column; }
-      .viewer { min-height:300px; aspect-ratio:3/4; }
+      .camera-grid { grid-template-columns:1fr; }
     }
   </style>
 </head>
@@ -55,17 +149,37 @@
     <div class="topbar">
       <div>
         <h1>Voordeur</h1>
-        <div class="sub">Eufy deurbelviewer</div>
+        <div class="sub">Eufy Dual deurbelviewer</div>
       </div>
       <div id="badge" class="badge">Verbinden…</div>
     </div>
 
-    <section class="viewer">
-      <img id="stream" alt="Livebeeld voordeur">
-      <div id="placeholder" class="placeholder">
-        <strong>Livebeeld staat uit</strong>
-        Druk op “Live bekijken” om de deurbel tijdelijk te starten.
-      </div>
+    <section class="camera-grid">
+      <article class="camera-card">
+        <div class="camera-head">
+          <strong>Hoofdcamera</strong>
+          <span>Bovenste lens</span>
+        </div>
+        <div class="camera-view top">
+          <img id="topStream" class="crop-source" alt="Livebeeld hoofdcamera">
+          <div class="placeholder dual-placeholder">
+            <div><strong>Livebeeld staat uit</strong>Druk op “Live bekijken”.</div>
+          </div>
+        </div>
+      </article>
+
+      <article class="camera-card">
+        <div class="camera-head">
+          <strong>Pakketcamera</strong>
+          <span>Onderste lens</span>
+        </div>
+        <div class="camera-view bottom">
+          <img id="bottomStream" class="crop-source" alt="Livebeeld pakketcamera">
+          <div class="placeholder dual-placeholder">
+            <div><strong>Livebeeld staat uit</strong>Druk op “Live bekijken”.</div>
+          </div>
+        </div>
+      </article>
     </section>
 
     <div class="controls">
@@ -75,24 +189,28 @@
 
     <div id="error" class="error"></div>
 
-    <section class="details">
-      <div class="kv"><span>Eufy verbinding</span><b id="ws">-</b></div>
-      <div class="kv"><span>Viewer</span><b id="active">-</b></div>
-      <div class="kv"><span>Ontvangen</span><b id="source">-</b></div>
-      <div class="kv"><span>Actieve videobron</span><b id="selected">-</b></div>
-      <div class="kv"><span>Gedetecteerde bronnen</span><b id="sources">-</b></div>
-      <div class="kv"><span>Frames</span><b id="frames">-</b></div>
-      <div class="kv"><span>Kijkers</span><b id="clients">-</b></div>
-    </section>
+    <details>
+      <summary>Technische informatie</summary>
+      <section class="details">
+        <div class="kv"><span>Eufy verbinding</span><b id="ws">-</b></div>
+        <div class="kv"><span>Viewer</span><b id="active">-</b></div>
+        <div class="kv"><span>Ontvangen</span><b id="source">-</b></div>
+        <div class="kv"><span>Actieve videobron</span><b id="selected">-</b></div>
+        <div class="kv"><span>Gedetecteerde bronnen</span><b id="sources">-</b></div>
+        <div class="kv"><span>Frames</span><b id="frames">-</b></div>
+        <div class="kv"><span>Kijkers</span><b id="clients">-</b></div>
+      </section>
+    </details>
   </main>
 
   <script>
     const $ = (id) => document.getElementById(id);
     const startBtn = $('start');
     const stopBtn = $('stop');
-    const stream = $('stream');
-    const placeholder = $('placeholder');
+    const topStream = $('topStream');
+    const bottomStream = $('bottomStream');
     const errorBox = $('error');
+    const placeholders = [...document.querySelectorAll('.dual-placeholder')];
     let lastActive = false;
 
     async function api(path, options = {}) {
@@ -102,16 +220,21 @@
       return data;
     }
 
-    function showStream() {
-      stream.src = '/stream.mjpg?t=' + Date.now();
-      stream.style.display = 'block';
-      placeholder.style.display = 'none';
+    function showStreams() {
+      const stamp = Date.now();
+      topStream.src = '/stream.mjpg?view=top&t=' + stamp;
+      bottomStream.src = '/stream.mjpg?view=bottom&t=' + stamp;
+      topStream.style.display = 'block';
+      bottomStream.style.display = 'block';
+      placeholders.forEach((p) => p.style.display = 'none');
     }
 
-    function hideStream() {
-      stream.removeAttribute('src');
-      stream.style.display = 'none';
-      placeholder.style.display = 'block';
+    function hideStreams() {
+      topStream.removeAttribute('src');
+      bottomStream.removeAttribute('src');
+      topStream.style.display = 'none';
+      bottomStream.style.display = 'none';
+      placeholders.forEach((p) => p.style.display = 'grid');
     }
 
     async function refresh() {
@@ -132,8 +255,8 @@
         startBtn.disabled = !ready || s.active;
         stopBtn.disabled = !s.active;
 
-        if (s.active && !lastActive) showStream();
-        if (!s.active && lastActive) hideStream();
+        if (s.active && !lastActive) showStreams();
+        if (!s.active && lastActive) hideStreams();
         lastActive = s.active;
 
         if (s.lastError) {
@@ -154,7 +277,7 @@
       errorBox.style.display = 'none';
       try {
         await api('/api/start', { method:'POST' });
-        showStream();
+        showStreams();
         lastActive = true;
       } catch (error) {
         errorBox.textContent = error.message;
@@ -166,7 +289,7 @@
     stopBtn.addEventListener('click', async () => {
       stopBtn.disabled = true;
       try { await api('/api/stop', { method:'POST' }); } catch {}
-      hideStream();
+      hideStreams();
       lastActive = false;
       refresh();
     });
