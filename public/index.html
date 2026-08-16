@@ -38,6 +38,7 @@
       display:grid;
       grid-template-columns:repeat(2,minmax(0,1fr));
       gap:16px;
+      align-items:start;
     }
     .camera-card {
       background:#191d24;
@@ -59,21 +60,35 @@
 
     .camera-view {
       position:relative;
-      aspect-ratio:4 / 3;
       overflow:hidden;
       background:#050607;
     }
+    .camera-view.top { aspect-ratio:4 / 3; }
+    .camera-view.bottom { aspect-ratio:16 / 9; }
+
+    /*
+      De T8213 levert één samengesteld frame met verhouding 16:23:
+      - bovenste camera: 16:12 (4:3)
+      - Eufy Dual Cam scheidingsbalk: 16:2
+      - onderste camera: 16:9
+      Daarom krijgt elke kaart zijn eigen exacte uitsnede uit hetzelfde MJPEG-frame.
+    */
     .crop-source {
       position:absolute;
       left:0;
       width:100%;
-      height:200%;
       object-fit:fill;
       display:none;
       background:#000;
     }
-    .camera-view.top .crop-source { top:0; }
-    .camera-view.bottom .crop-source { top:-100%; }
+    .camera-view.top .crop-source {
+      top:0;
+      height:191.666667%;
+    }
+    .camera-view.bottom .crop-source {
+      top:-155.555556%;
+      height:255.555556%;
+    }
 
     .placeholder {
       position:absolute;
@@ -158,7 +173,7 @@
       <article class="camera-card">
         <div class="camera-head">
           <strong>Hoofdcamera</strong>
-          <span>Bovenste lens</span>
+          <span>Bovenste lens · 4:3</span>
         </div>
         <div class="camera-view top">
           <img id="topStream" class="crop-source" alt="Livebeeld hoofdcamera">
@@ -171,7 +186,7 @@
       <article class="camera-card">
         <div class="camera-head">
           <strong>Pakketcamera</strong>
-          <span>Onderste lens</span>
+          <span>Onderste lens · 16:9 livebeeld</span>
         </div>
         <div class="camera-view bottom">
           <img id="bottomStream" class="crop-source" alt="Livebeeld pakketcamera">
