@@ -22,6 +22,7 @@ const config = {
 const VIEWER = `http://127.0.0.1:${config.viewerPort}`;
 const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'security.html'));
 const settingsFile = path.join(config.dataDir, 'security.json');
+const homebaseStatusFile = path.join(config.dataDir, 'homebase-status.json');
 fs.mkdirSync(config.recordingsDir, { recursive: true });
 fs.mkdirSync(config.dataDir, { recursive: true });
 
@@ -86,6 +87,51 @@ async function viewerStatus() {
   }
 }
 
+function recordingSource(name) {
+  if (/_eufy-original[.]mp4$/i.test(name)) return { sourceType:'homebase', sourceLabel:'HomeBase origineel' };
+  if (/_test-knop[.]mp4$/i.test(name)) return { sourceType:'live-test', sourceLabel:'Live-trigger test' };
+  if (/_eufy-(motion|person)[.]mp4$/i.test(name)) return { sourceType:'legacy-live', sourceLabel:'Oude live-opname' };
+  return { sourceType:'live', sourceLabel:'Live-trigger' };
+}
+
+function getHomebaseStatus() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(homebaseStatusFile, 'utf8'));
+    const lastSuccessMs = saved.lastSuccessAt ? new Date(saved.lastSuccessAt).getTime() : 0;
+    const ageSeconds = lastSuccessMs > 0 ? Math.max(0, Math.round((Date.now() - lastSuccessMs) / 1000)) : null;
+    const healthy = Boolean(saved.connected && saved.listening && lastSuccessMs > 0 && Date.now() - lastSuccessMs < 120000);
+    return {
+      available:true,
+      healthy,
+      ageSeconds,
+      connected:Boolean(saved.connected),
+      listening:Boolean(saved.listening),
+      lastCheckAt:saved.lastCheckAt || null,
+      lastSuccessAt:saved.lastSuccessAt || null,
+      lastImportAt:saved.lastImportAt || null,
+      lastImportedFile:saved.lastImportedFile || null,
+      lastError:saved.lastError || null,
+      eventCount:Number.isFinite(Number(saved.eventCount)) ? Number(saved.eventCount) : null,
+      token:saved.token || '',
+    };
+  } catch (error) {
+    return {
+      available:false,
+      healthy:false,
+      ageSeconds:null,
+      connected:false,
+      listening:false,
+      lastCheckAt:null,
+      lastSuccessAt:null,
+      lastImportAt:null,
+      lastImportedFile:null,
+      lastError:error.code === 'ENOENT' ? 'HomeBase-monitor nog niet gestart' : error.message,
+      eventCount:null,
+      token:'',
+    };
+  }
+}
+
 function listRecordings() {
   try {
     return fs.readdirSync(config.recordingsDir)
@@ -100,6 +146,7 @@ function listRecordings() {
         try { thumbnailSize = fs.statSync(jpgPath).size; } catch {}
         return {
           name,
+          ...recordingSource(name),
           createdAt: stat.mtime.toISOString(),
           size: stat.size,
           totalSize: stat.size + thumbnailSize,
@@ -488,9 +535,11 @@ const server = http.createServer(async (req, res) => {
     refreshStorage();
     const viewer = await viewerStatus();
     const storage = getStorageInfo();
+    const homebase = getHomebaseStatus();
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
     res.end(JSON.stringify({
       ...viewer,
+      homebase,
       security:{
         ...state,
         eventSeconds:config.eventSeconds,
