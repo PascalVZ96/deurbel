@@ -5,16 +5,15 @@ VIEWER_PORT="${VIEWER_PORT:-8092}"
 WEB_PORT="${WEB_PORT:-8090}"
 
 cleanup() {
-  [ -n "${MOTION_PID:-}" ] && kill "$MOTION_PID" 2>/dev/null || true
+  [ -n "${HOMEBASE_PID:-}" ] && kill "$HOMEBASE_PID" 2>/dev/null || true
   [ -n "${SECURITY_PID:-}" ] && kill "$SECURITY_PID" 2>/dev/null || true
   [ -n "${SUPERVISOR_PID:-}" ] && kill "$SUPERVISOR_PID" 2>/dev/null || true
   [ -n "${VIEWER_PID:-}" ] && kill "$VIEWER_PID" 2>/dev/null || true
 }
 trap cleanup INT TERM EXIT
 
-# Interne Eufy-viewer. Deze forceert nu zelf Low / Low Encoding vóór iedere
-# streamstart, zodat dezelfde WebSocket die de videodata ontvangt ook het
-# H265-herstel kan uitvoeren.
+# Interne Eufy-viewer. Deze blijft beschikbaar voor handmatig livebeeld en
+# externe/PIR-triggers, maar automatische Eufy-beweging start hem niet meer.
 WEB_PORT="$VIEWER_PORT" node src/server.mjs &
 VIEWER_PID=$!
 
@@ -28,11 +27,11 @@ SUPERVISOR_PID=$!
 WEB_PORT="$WEB_PORT" VIEWER_PORT="$VIEWER_PORT" node src/security-monitor.mjs &
 SECURITY_PID=$!
 
-# Geef het dashboard even tijd om de trigger-endpoint te openen en luister
-# daarna continu naar Eufy motion/person-events. De livestream blijft hierbij
-# uit totdat daadwerkelijk een trigger binnenkomt.
+# Automatische Eufy-beweging: zoek na het event de originele HomeBase-opname,
+# download H265/AAC en zet deze om naar browser-vriendelijke H264 MP4 + JPG.
+# De livestream blijft tijdens deze automatische route uit.
 sleep 1
-SECURITY_TRIGGER_URL="http://127.0.0.1:${WEB_PORT}/api/trigger" node src/motion-monitor.mjs &
-MOTION_PID=$!
+SECURITY_STATUS_URL="http://127.0.0.1:${WEB_PORT}/api/status" node src/homebase-monitor.mjs &
+HOMEBASE_PID=$!
 
 wait "$SECURITY_PID"
