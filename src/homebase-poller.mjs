@@ -14,6 +14,7 @@ const C = {
 };
 
 const stateFile = path.join(C.data, 'homebase-poller.json');
+const statusFile = path.join(C.data, 'homebase-status.json');
 let ws = null;
 let query = null;
 let download = null;
@@ -23,6 +24,18 @@ let running = false;
 let stopping = false;
 let listening = false;
 let state = { eventCount: null, cropPath: '', token: '' };
+let status = {
+  connected: false,
+  listening: false,
+  lastCheckAt: null,
+  lastSuccessAt: null,
+  lastImportAt: null,
+  lastImportedFile: null,
+  lastError: null,
+  eventCount: null,
+  token: '',
+};
+let lastStatusWrite = 0;
 
 const send = (command, extra = {}, messageId = `${command}-${Date.now()}`) => {
   if (!ws || ws.readyState !== 1) throw new Error('WebSocket niet verbonden');
@@ -58,9 +71,38 @@ function loadState() {
         cropPath: String(saved.cropPath),
         token: String(saved.token || ''),
       };
+      status.eventCount = state.eventCount;
+      status.token = state.token;
       console.log(`[homebase] Vorige positie: event_count=${state.eventCount}${state.token ? ` (${state.token})` : ''}.`);
     }
   } catch {}
+}
+
+function loadStatus() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    status.lastImportAt = saved.lastImportAt || null;
+    status.lastImportedFile = saved.lastImportedFile || null;
+  } catch {}
+}
+
+function writeStatus(force = false) {
+  const now = Date.now();
+  if (!force && now - lastStatusWrite < 30000) return;
+  lastStatusWrite = now;
+  status.connected = Boolean(ws && ws.readyState === 1);
+  status.listening = Boolean(listening);
+  status.eventCount = state.eventCount;
+  status.token = state.token;
+  fs.mkdirSync(C.data, { recursive: true });
+  const tmp = `${statusFile}.tmp`;
+  try {
+    fs.writeFileSync(tmp, JSON.stringify({ ...status, updatedAt: new Date().toISOString() }, null, 2));
+    fs.renameSync(tmp, statusFile);
+  } catch (error) {
+    try { fs.unlinkSync(tmp); } catch {}
+    console.warn(`[homebase] Status opslaan mislukt: ${error.message}`);
+  }
 }
 
 function saveState(next) {
@@ -69,10 +111,13 @@ function saveState(next) {
     cropPath: String(next.cropPath || ''),
     token: String(next.token || ''),
   };
+  status.eventCount = state.eventCount;
+  status.token = state.token;
   fs.mkdirSync(C.data, { recursive: true });
   const tmp = `${stateFile}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify({ ...state, updatedAt: new Date().toISOString() }, null, 2));
   fs.renameSync(tmp, stateFile);
+  writeStatus(true);
 }
 
 async function securityOn() {
@@ -195,7 +240,7 @@ async function importLatest(record) {
 
   if (fs.existsSync(output) && fs.statSync(output).size > 0) {
     console.log(`[homebase] Bestaat al: ${path.basename(output)}`);
-    return;
+    return path.basename(output);
   }
 
   for (const file of [output, thumb, videoFile, audioFile]) {
@@ -212,7 +257,9 @@ async function importLatest(record) {
     const when = tokenDate(record.token);
     try { fs.utimesSync(output, when, when); } catch {}
     try { fs.utimesSync(thumb, when, when); } catch {}
-    console.log(`[homebase] Opgeslagen: ${path.basename(output)} (${Math.round(fs.statSync(output).size / 1024)} KB).`);
+    const file = path.basename(output);
+    console.log(`[homebase] Opgeslagen: ${file} (${Math.round(fs.statSync(output).size / 1024)} KB).`);
+    return file;
   } finally {
     for (const file of [videoFile, audioFile]) {
       try { fs.unlinkSync(file); } catch {}
@@ -223,10 +270,17 @@ async function importLatest(record) {
 async function poll() {
   if (running || stopping || !listening || !ws || ws.readyState !== 1) return;
   running = true;
+  status.lastCheckAt = new Date().toISOString();
 
   try {
     const latest = latestForDoorbell(await queryLatest());
+    status.lastSuccessAt = new Date().toISOString();
+    status.lastError = null;
+    writeStatus();
+
     if (!latest) {
+      status.lastError = 'Deurbel ontbreekt in database query latest';
+      writeStatus(true);
       console.warn('[homebase] Deurbel ontbreekt in database query latest.');
       return;
     }
@@ -257,9 +311,14 @@ async function poll() {
       console.warn(`[homebase] event_count sprong met ${delta}; nieuwste opname wordt nu veiliggesteld.`);
     }
 
-    await importLatest(latest);
+    const importedFile = await importLatest(latest);
+    status.lastImportAt = new Date().toISOString();
+    status.lastImportedFile = importedFile;
     saveState(latest);
+    writeStatus(true);
   } catch (error) {
+    status.lastError = error.message;
+    writeStatus(true);
     console.warn(`[homebase] Controle mislukt: ${error.message}`);
   } finally {
     running = false;
@@ -282,9 +341,14 @@ async function finishDownload() {
 function handle(data) {
   if (data.type === 'result' && data.messageId === 'hb-listen') {
     if (data.success === false) {
-      console.warn(`[homebase] start_listening mislukt: ${data.error || data.errorCode || 'onbekend'}`);
+      status.lastError = data.error || data.errorCode || 'start_listening mislukt';
+      writeStatus(true);
+      console.warn(`[homebase] start_listening mislukt: ${status.lastError}`);
     } else if (!listening) {
       listening = true;
+      status.listening = true;
+      status.lastError = null;
+      writeStatus(true);
       console.log('[homebase] Luisteren actief; latest-info polling gestart.');
       schedule(1000);
     }
@@ -377,6 +441,8 @@ function schedule(delay = C.poll) {
 
 function connect() {
   if (!C.dev || !C.hb) {
+    status.lastError = 'EUFY_SERIAL of EUFY_STATION_SERIAL ontbreekt';
+    writeStatus(true);
     console.error('[homebase] EUFY_SERIAL of EUFY_STATION_SERIAL ontbreekt.');
     return;
   }
@@ -384,6 +450,10 @@ function connect() {
   ws = new WebSocket(C.ws);
   ws.addEventListener('open', () => {
     listening = false;
+    status.connected = true;
+    status.listening = false;
+    status.lastError = null;
+    writeStatus(true);
     console.log(`[homebase] Verbonden. Deurbel ${C.dev} via HomeBase ${C.hb}.`);
     send('set_api_schema', { schemaVersion: 21 }, 'hb-schema');
     send('start_listening', {}, 'hb-listen');
@@ -395,6 +465,10 @@ function connect() {
   });
   ws.addEventListener('close', () => {
     listening = false;
+    status.connected = false;
+    status.listening = false;
+    status.lastError = 'WebSocket verbroken';
+    writeStatus(true);
     stopActive('WebSocket verbroken');
     if (pollTimer) clearTimeout(pollTimer);
     pollTimer = null;
@@ -404,12 +478,19 @@ function connect() {
     reconnectTimer = setTimeout(connect, 3000);
   });
   ws.addEventListener('error', () => {
-    if (!stopping) console.warn('[homebase] WebSocket-fout.');
+    if (!stopping) {
+      status.lastError = 'WebSocket-fout';
+      writeStatus(true);
+      console.warn('[homebase] WebSocket-fout.');
+    }
   });
 }
 
 function shutdown() {
   stopping = true;
+  status.connected = false;
+  status.listening = false;
+  writeStatus(true);
   if (pollTimer) clearTimeout(pollTimer);
   if (reconnectTimer) clearTimeout(reconnectTimer);
   stopActive('monitor stopt');
@@ -419,6 +500,8 @@ function shutdown() {
 
 fs.mkdirSync(C.data, { recursive: true });
 loadState();
+loadStatus();
+writeStatus(true);
 console.log('[homebase] HomeBase latest-info is de bron; zware dagquery is niet meer nodig.');
 console.log(`[homebase] Controle elke ${Math.round(C.poll / 1000)}s; automatische route start GEEN livestream.`);
 connect();
