@@ -20,5 +20,9 @@ services:
       RECORDINGS_DIR: /recordings
       DATA_DIR: /data
     volumes:
-      - ${RECORDINGS_HOST_PATH:-./recordings}:/recordings
+      - type: bind
+        source: /mnt/security/deurbel
+        target: /recordings
+        bind:
+          create_host_path: false
       - ./data:/data
