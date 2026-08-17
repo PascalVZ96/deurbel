@@ -92,16 +92,16 @@
 
   <section class="security-card">
     <div class="security-main"><div class="shield">🛡️</div><div><div id="securityTitle" class="security-title">Beveiliging uit</div><div id="securitySub" class="security-sub">De camera is alleen actief wanneer je handmatig live kijkt.</div></div></div>
-    <div class="security-stats"><span id="triggerPill" class="pill">Wacht op sensor</span><span id="recordingPill" class="pill">Geen opname</span><span id="storagePill" class="pill">0 opnames</span></div>
+    <div class="security-stats"><span id="triggerPill" class="pill">Beveiliging uit</span><span id="recordingPill" class="pill">Geen opname</span><span id="storagePill" class="pill">0 opnames</span></div>
   </section>
 
   <section class="camera-grid">
-    <article class="camera-card"><div class="camera-head"><strong>Hoofdcamera</strong><span>Bovenste lens · 4:3</span></div><div class="camera-view top"><img id="topStream" class="crop-source" alt="Livebeeld hoofdcamera"><div class="placeholder dual-placeholder"><div><strong>Camera slaapt</strong>Dat spaart de accu. Gebruik “Live bekijken” of een bewegingstrigger.</div></div></div></article>
-    <article class="camera-card"><div class="camera-head"><strong>Pakketcamera</strong><span>Onderste lens · 16:9</span></div><div class="camera-view bottom"><img id="bottomStream" class="crop-source" alt="Livebeeld pakketcamera"><div class="placeholder dual-placeholder"><div><strong>Camera slaapt</strong>Bij beweging wordt hij automatisch tijdelijk wakker.</div></div></div></article>
+    <article class="camera-card"><div class="camera-head"><strong>Hoofdcamera</strong><span>Bovenste lens · 4:3</span></div><div class="camera-view top"><img id="topStream" class="crop-source" alt="Livebeeld hoofdcamera"><div class="placeholder dual-placeholder"><div><strong>Camera slaapt</strong>Dat spaart de accu. Gebruik “Live bekijken”; bewegingsopnames komen automatisch uit de HomeBase.</div></div></div></article>
+    <article class="camera-card"><div class="camera-head"><strong>Pakketcamera</strong><span>Onderste lens · 16:9</span></div><div class="camera-view bottom"><img id="bottomStream" class="crop-source" alt="Livebeeld pakketcamera"><div class="placeholder dual-placeholder"><div><strong>Camera slaapt</strong>De HomeBase neemt beweging zelfstandig op zonder dat de livestream hoeft te starten.</div></div></div></article>
   </section>
 
-  <div class="controls"><button id="security">🛡 Beveiliging inschakelen</button><button id="testTrigger">⚡ Test beweging</button><button id="start">▶ Live bekijken</button><button id="stop" disabled>■ Stop</button></div>
-  <div class="info">In de zuinige modus blijft de deurbelstream <strong>uit</strong>. Een externe bewegingssensor kan straks een opname starten met <code>POST /api/trigger</code>. De knop “Test beweging” doet nu exact hetzelfde.</div>
+  <div class="controls"><button id="security">🛡 Beveiliging inschakelen</button><button id="testTrigger">⚡ Test live-trigger</button><button id="start">▶ Live bekijken</button><button id="stop" disabled>■ Stop</button></div>
+  <div class="info">In de zuinige modus blijft de deurbelstream <strong>uit</strong>. Eufy en de HomeBase maken de bewegingsopname; de server haalt de originele opname daarna automatisch op en bewaart hem op de aparte HDD. “Test live-trigger” test alleen de losse live-opnameroute voor een toekomstige externe sensor.</div>
   <div id="error" class="error"></div>
 
   <section class="storage-card">
@@ -119,7 +119,7 @@
     <div class="retention-row"><label for="retentionSelect"><strong>Bewaartermijn</strong><br><span class="storage-sub">Oudere opnames worden automatisch verwijderd.</span></label><select id="retentionSelect"><option value="7">7 dagen</option><option value="14">14 dagen</option><option value="30">30 dagen</option><option value="60">60 dagen</option><option value="90">90 dagen</option><option value="180">180 dagen</option><option value="365">1 jaar</option><option value="0">Onbeperkt</option></select></div>
   </section>
 
-  <div class="section-head"><div><h2>Opnames</h2><p>De camera wordt alleen tijdelijk wakker na een bewegingstrigger.</p></div><div id="retention" class="pill">14 dagen bewaren</div></div>
+  <div class="section-head"><div><h2>Opnames</h2><p>Originele HomeBase-opnames worden automatisch opgeslagen; de livestream blijft uit.</p></div><div id="retention" class="pill">14 dagen bewaren</div></div>
   <section id="recordings" class="recordings"><div class="empty">Nog geen bewegingsopnames.</div></section>
 
   <details><summary>Technische informatie</summary><section class="details">
@@ -176,11 +176,11 @@ async function refresh(){
     if(lastRetention!==sec.retentionDays){retentionSelect.value=String(sec.retentionDays);lastRetention=sec.retentionDays}
     updateStorage(storage);
 
-    $('securityTitle').textContent=sec.securityEnabled?'Beveiliging actief · zuinige modus':'Beveiliging uit';
-    $('securitySub').textContent=sec.securityEnabled?(sec.eventActive?'Beweging gemeld: de camera is tijdelijk wakker voor de opname.':storage.ok?'Camera slaapt en wacht op een bewegingstrigger.':'Camera slaapt, maar opnemen is geblokkeerd totdat de HDD weer beschikbaar is.'):'De camera is alleen actief wanneer je handmatig live kijkt.';
+    $('securityTitle').textContent=sec.securityEnabled?'Beveiliging actief · HomeBase automatisch':'Beveiliging uit';
+    $('securitySub').textContent=sec.securityEnabled?(sec.eventActive?'Live-trigger actief: de camera is tijdelijk wakker voor deze test/externe opname.':storage.ok?'Camera slaapt. Nieuwe HomeBase-bewegingsopnames worden automatisch geïmporteerd.':'Camera slaapt, maar importeren is geblokkeerd totdat de HDD weer beschikbaar is.'):'De camera is alleen actief wanneer je handmatig live kijkt.';
     securityBtn.textContent=sec.securityEnabled?'🛡 Beveiliging uitschakelen':'🛡 Beveiliging inschakelen';securityBtn.classList.toggle('off',!!sec.securityEnabled);
-    const tp=$('triggerPill');tp.textContent=sec.eventActive?'Beweging gedetecteerd':(sec.lastTriggerAt?'Laatste trigger '+new Date(sec.lastTriggerAt).toLocaleTimeString('nl-NL'):'Wacht op sensor');tp.classList.toggle('trigger',!!sec.eventActive);
-    const rp=$('recordingPill');rp.textContent=sec.recording?'● Opname bezig':'Geen opname';rp.classList.toggle('recording',!!sec.recording);
+    const tp=$('triggerPill');tp.textContent=sec.eventActive?'Live-trigger actief':(sec.securityEnabled?'HomeBase actief':'Beveiliging uit');tp.classList.toggle('trigger',!!sec.eventActive);
+    const rp=$('recordingPill');rp.textContent=sec.recording?'● Live-opname bezig':(sec.securityEnabled?'HomeBase automatisch':'Geen opname');rp.classList.toggle('recording',!!sec.recording);
     $('storagePill').textContent=`${sec.recordingsCount||0} opnames · ${fmtBytes(sec.storageBytes||0)}`;
 
     startBtn.disabled=!ready||s.active;stopBtn.disabled=!s.active||sec.eventActive;securityBtn.disabled=!ready&&!sec.securityEnabled;testBtn.disabled=!ready||!sec.securityEnabled||!storage.ok;
