@@ -56,6 +56,11 @@ const toBuf = value => {
 const stamp = token => `${token.slice(0,4)}-${token.slice(4,6)}-${token.slice(6,8)}_${token.slice(8,10)}-${token.slice(10,12)}-${token.slice(12,14)}`;
 const tokenDate = token => new Date(+token.slice(0,4), +token.slice(4,6)-1, +token.slice(6,8), +token.slice(8,10), +token.slice(10,12), +token.slice(12,14));
 
+function nextDay(day) {
+  const date = new Date(Date.UTC(+day.slice(0,4), +day.slice(4,6)-1, +day.slice(6,8)+1));
+  return `${date.getUTCFullYear()}${String(date.getUTCMonth()+1).padStart(2,'0')}${String(date.getUTCDate()).padStart(2,'0')}`;
+}
+
 function diskOk() {
   fs.accessSync(C.rec, fs.constants.R_OK | fs.constants.W_OK);
   const stat = fs.statfsSync(C.rec, { bigint: true });
@@ -134,9 +139,33 @@ function queryLatest() {
       if (query?.id === id) query = null;
       reject(new Error('latest-query timeout'));
     }, 20000);
-    query = { id, resolve, reject, timeout };
+    query = { id, event:'database query latest', resolve, reject, timeout };
     try {
       send('station.database_query_latest_info', { serialNumber: C.hb }, id);
+    } catch (error) {
+      clearTimeout(timeout);
+      query = null;
+      reject(error);
+    }
+  });
+}
+
+function queryByDate(startDate, endDate) {
+  if (query) return Promise.reject(new Error('query bezig'));
+  const id = `hbb-${Date.now()}`;
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      if (query?.id === id) query = null;
+      reject(new Error('backfill-query timeout'));
+    }, 45000);
+    query = { id, event:'database query by date', resolve, reject, timeout };
+    try {
+      send('station.database_query_by_date', {
+        serialNumber: C.hb,
+        serialNumbers: [C.dev],
+        startDate,
+        endDate,
+      }, id);
     } catch (error) {
       clearTimeout(timeout);
       query = null;
@@ -158,7 +187,33 @@ function latestForDoorbell(data) {
   const eventCount = Number(row.event_count);
   if (!Number.isFinite(eventCount)) throw new Error('HomeBase event_count ontbreekt');
 
-  return { eventCount, cropPath, token, storagePath };
+  return { eventCount, cropPath, token, storagePath, cipherId:0, recordId:null };
+}
+
+function recordsFromDatabase(data, afterToken, throughToken) {
+  const seen = new Set();
+  return (Array.isArray(data) ? data : [])
+    .filter(row => row?.device_sn === C.dev)
+    .map(row => {
+      const storagePath = String(row.storage_path || '');
+      const match = /([0-9]{14})[.]zxvideo$/i.exec(storagePath);
+      if (!match) return null;
+      return {
+        eventCount:null,
+        cropPath:'',
+        token:match[1],
+        storagePath,
+        cipherId:Number(row.cipher_id || 0),
+        recordId:row.record_id ?? null,
+      };
+    })
+    .filter(record => record && (!afterToken || record.token > afterToken) && (!throughToken || record.token <= throughToken))
+    .filter(record => {
+      if (seen.has(record.token)) return false;
+      seen.add(record.token);
+      return true;
+    })
+    .sort((a,b) => a.token.localeCompare(b.token));
 }
 
 function finishStream(stream) {
@@ -192,7 +247,7 @@ function downloadRecord(record, videoFile, audioFile) {
       send('device.start_download', {
         serialNumber: C.dev,
         path: record.storagePath,
-        cipherId: 0,
+        cipherId: Number(record.cipherId || 0),
       }, id);
     } catch (error) {
       clearTimeout(timeout);
@@ -229,7 +284,7 @@ function convert(data, videoFile, audioFile, output, thumb) {
   ff(['-hide_banner', '-loglevel', 'error', '-ss', '1', '-i', output, '-frames:v', '1', '-q:v', '3', '-y', thumb]);
 }
 
-async function importLatest(record) {
+async function importRecord(record) {
   if (!diskOk()) throw new Error('/recordings staat niet op de grote HDD');
 
   const base = `motion_${stamp(record.token)}_eufy-original`;
@@ -248,7 +303,8 @@ async function importLatest(record) {
   }
 
   try {
-    console.log(`[homebase] Nieuwe HomeBase-opname: event_count=${record.eventCount} (${record.token}); livestream blijft uit.`);
+    const idText = record.recordId != null ? `record_id=${record.recordId}` : `event_count=${record.eventCount ?? '?'}`;
+    console.log(`[homebase] Nieuwe HomeBase-opname: ${idText} (${record.token}); livestream blijft uit.`);
     console.log(`[homebase] Download: ${record.storagePath}`);
     const data = await downloadRecord(record, videoFile, audioFile);
     if (!data.vc || !data.vb) throw new Error('download bevat geen videodata');
@@ -265,6 +321,34 @@ async function importLatest(record) {
       try { fs.unlinkSync(file); } catch {}
     }
   }
+}
+
+async function importChanged(latest, delta) {
+  let lastImportedFile = null;
+
+  if (delta > 1) {
+    const startDate = /^[0-9]{14}$/.test(state.token) ? state.token.slice(0,8) : latest.token.slice(0,8);
+    const endDate = nextDay(latest.token.slice(0,8));
+    console.warn(`[homebase] event_count sprong met ${delta}; backfill ${startDate} -> ${endDate} wordt geprobeerd.`);
+
+    try {
+      const records = recordsFromDatabase(await queryByDate(startDate, endDate), state.token, latest.token);
+      if (records.length) {
+        console.log(`[homebase] Backfill vond ${records.length} gemiste/nieuwe opname(s).`);
+        for (const record of records) lastImportedFile = await importRecord(record);
+      } else {
+        console.warn('[homebase] Backfill gaf geen passende .zxvideo-records; nieuwste opname wordt veiliggesteld.');
+      }
+    } catch (error) {
+      console.warn(`[homebase] Backfill-query mislukt: ${error.message}; nieuwste opname wordt veiliggesteld.`);
+    }
+  }
+
+  const latestAlreadyHandled = fs.existsSync(path.join(C.rec, `motion_${stamp(latest.token)}_eufy-original.mp4`));
+  if (!latestAlreadyHandled) lastImportedFile = await importRecord(latest);
+  else if (!lastImportedFile) lastImportedFile = `motion_${stamp(latest.token)}_eufy-original.mp4`;
+
+  return lastImportedFile;
 }
 
 async function poll() {
@@ -307,11 +391,7 @@ async function poll() {
       return;
     }
 
-    if (delta > 1) {
-      console.warn(`[homebase] event_count sprong met ${delta}; nieuwste opname wordt nu veiliggesteld.`);
-    }
-
-    const importedFile = await importLatest(latest);
+    const importedFile = await importChanged(latest, delta);
     status.lastImportAt = new Date().toISOString();
     status.lastImportedFile = importedFile;
     saveState(latest);
@@ -359,12 +439,12 @@ function handle(data) {
       const current = query;
       query = null;
       clearTimeout(current.timeout);
-      current.reject(new Error(data.error || data.errorCode || 'latest-query geweigerd'));
+      current.reject(new Error(data.error || data.errorCode || 'database-query geweigerd'));
     } else if (
       data.type === 'event' &&
       data.event?.source === 'station' &&
       data.event.serialNumber === C.hb &&
-      data.event.event === 'database query latest'
+      data.event.event === query.event
     ) {
       const current = query;
       query = null;
@@ -502,7 +582,7 @@ fs.mkdirSync(C.data, { recursive: true });
 loadState();
 loadStatus();
 writeStatus(true);
-console.log('[homebase] HomeBase latest-info is de bron; zware dagquery is niet meer nodig.');
+console.log('[homebase] HomeBase latest-info is de bron; zware dagquery draait alleen als backfill nodig is.');
 console.log(`[homebase] Controle elke ${Math.round(C.poll / 1000)}s; automatische route start GEEN livestream.`);
 connect();
 process.on('SIGTERM', shutdown);
