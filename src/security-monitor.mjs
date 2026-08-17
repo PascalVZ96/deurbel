@@ -12,9 +12,11 @@ const config = {
   eventSeconds: Number(process.env.EVENT_RECORD_SECONDS || 30),
   wakeTimeoutSeconds: Number(process.env.EVENT_WAKE_TIMEOUT_SECONDS || 15),
   maxRecordSeconds: Number(process.env.MAX_RECORD_SECONDS || 120),
-  retentionDays: Number(process.env.RETENTION_DAYS || 14),
+  defaultRetentionDays: Number(process.env.RETENTION_DAYS || 14),
   recordingsDir: process.env.RECORDINGS_DIR || '/recordings',
   dataDir: process.env.DATA_DIR || '/data',
+  storageLabel: process.env.STORAGE_LABEL || 'Toshiba 5 TB HDD',
+  storageMinBytes: Number(process.env.STORAGE_MIN_BYTES || 2_000_000_000_000),
 };
 
 const VIEWER = `http://127.0.0.1:${config.viewerPort}`;
@@ -26,10 +28,20 @@ fs.mkdirSync(config.dataDir, { recursive: true });
 function loadSettings() {
   try { return JSON.parse(fs.readFileSync(settingsFile, 'utf8')); } catch { return {}; }
 }
-const saved = loadSettings();
 
+function normalizeRetentionDays(value, fallback = config.defaultRetentionDays) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  const days = Math.trunc(n);
+  if (days === 0) return 0;
+  if (days < 1 || days > 3650) return fallback;
+  return days;
+}
+
+const saved = loadSettings();
 const state = {
   securityEnabled: Boolean(saved.securityEnabled),
+  retentionDays: normalizeRetentionDays(saved.retentionDays),
   eventActive: false,
   eventStarting: false,
   monitorConnected: false,
@@ -50,12 +62,14 @@ let eventStopAt = 0;
 let eventPromise = null;
 let eventOwnsViewer = false;
 let recorder = null;
-let lastJpeg = null;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function saveSettings() {
-  fs.writeFileSync(settingsFile, JSON.stringify({ securityEnabled: state.securityEnabled }, null, 2));
+  fs.writeFileSync(settingsFile, JSON.stringify({
+    securityEnabled: state.securityEnabled,
+    retentionDays: state.retentionDays,
+  }, null, 2));
 }
 
 async function viewerJson(route, options = {}) {
@@ -67,7 +81,9 @@ async function viewerJson(route, options = {}) {
 
 async function viewerStatus() {
   try { return await viewerJson('/api/status'); }
-  catch (error) { return { wsConnected:false, listening:false, active:false, streamHealthy:false, lastError:error.message }; }
+  catch (error) {
+    return { wsConnected:false, listening:false, active:false, streamHealthy:false, lastError:error.message };
+  }
 }
 
 function listRecordings() {
@@ -79,12 +95,16 @@ function listRecordings() {
         const stat = fs.statSync(full);
         const base = name.slice(0, -4);
         const jpg = `${base}.jpg`;
+        const jpgPath = path.join(config.recordingsDir, jpg);
+        let thumbnailSize = 0;
+        try { thumbnailSize = fs.statSync(jpgPath).size; } catch {}
         return {
           name,
           createdAt: stat.mtime.toISOString(),
           size: stat.size,
+          totalSize: stat.size + thumbnailSize,
           videoUrl: `/recordings/${encodeURIComponent(name)}`,
-          thumbnailUrl: fs.existsSync(path.join(config.recordingsDir, jpg)) ? `/recordings/${encodeURIComponent(jpg)}` : null,
+          thumbnailUrl: fs.existsSync(jpgPath) ? `/recordings/${encodeURIComponent(jpg)}` : null,
         };
       })
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -94,12 +114,49 @@ function listRecordings() {
 function refreshStorage() {
   const list = listRecordings();
   state.recordingsCount = list.length;
-  state.storageBytes = list.reduce((sum, item) => sum + item.size, 0);
+  state.storageBytes = list.reduce((sum, item) => sum + (item.totalSize || item.size || 0), 0);
+}
+
+function getStorageInfo() {
+  try {
+    fs.accessSync(config.recordingsDir, fs.constants.R_OK | fs.constants.W_OK);
+    const stat = fs.statfsSync(config.recordingsDir, { bigint:true });
+    const totalBytes = Number(stat.blocks * stat.bsize);
+    const freeBytes = Number(stat.bavail * stat.bsize);
+    const usedBytes = Math.max(0, totalBytes - freeBytes);
+    const usedPercent = totalBytes > 0 ? Math.round((usedBytes / totalBytes) * 1000) / 10 : 0;
+    const expectedDisk = totalBytes >= config.storageMinBytes;
+    return {
+      available: true,
+      ok: expectedDisk,
+      label: config.storageLabel,
+      path: config.recordingsDir,
+      totalBytes,
+      freeBytes,
+      usedBytes,
+      usedPercent,
+      recordingsBytes: state.storageBytes,
+      error: expectedDisk ? null : 'Opnameschijf lijkt niet de verwachte HDD te zijn',
+    };
+  } catch (error) {
+    return {
+      available:false,
+      ok:false,
+      label:config.storageLabel,
+      path:config.recordingsDir,
+      totalBytes:0,
+      freeBytes:0,
+      usedBytes:0,
+      usedPercent:0,
+      recordingsBytes:state.storageBytes,
+      error:error.message,
+    };
+  }
 }
 
 function cleanupOld() {
-  if (config.retentionDays <= 0) return;
-  const cutoff = Date.now() - config.retentionDays * 86400000;
+  if (state.retentionDays <= 0) return;
+  const cutoff = Date.now() - state.retentionDays * 86400000;
   for (const item of listRecordings()) {
     if (new Date(item.createdAt).getTime() >= cutoff) continue;
     const base = item.name.slice(0, -4);
@@ -122,11 +179,13 @@ function safeSource(source) {
 
 function startRecording(snapshot, source) {
   if (recorder || !snapshot) return;
+  const storage = getStorageInfo();
+  if (!storage.ok) throw new Error(`Opnameschijf niet beschikbaar: ${storage.error || 'onbekende fout'}`);
 
   const base = `motion_${timestamp()}_${safeSource(source)}`;
   const mp4 = path.join(config.recordingsDir, base + '.mp4');
   const jpg = path.join(config.recordingsDir, base + '.jpg');
-  try { fs.writeFileSync(jpg, snapshot); } catch {}
+  fs.writeFileSync(jpg, snapshot);
 
   const child = spawn('ffmpeg', [
     '-hide_banner', '-loglevel', 'error',
@@ -135,13 +194,7 @@ function startRecording(snapshot, source) {
     '-movflags', '+faststart', '-y', mp4,
   ], { stdio: ['pipe', 'ignore', 'pipe'] });
 
-  recorder = {
-    process: child,
-    stdin: child.stdin,
-    file: base + '.mp4',
-    startedAt: Date.now(),
-  };
-
+  recorder = { process:child, stdin:child.stdin, file:base + '.mp4', startedAt:Date.now() };
   state.recording = true;
   state.recordingFile = recorder.file;
   state.recordingStartedAt = new Date().toISOString();
@@ -211,7 +264,6 @@ async function waitForHealthy(timeoutSeconds = config.wakeTimeoutSeconds) {
 async function startFreshViewer() {
   let status = await viewerStatus();
   if (!status.wsConnected || !status.listening) throw new Error('eufy-security-ws is niet gereed');
-
   let ownsViewer = !status.active;
 
   if (status.active && !status.streamHealthy) {
@@ -234,7 +286,6 @@ async function startFreshViewer() {
   await sleep(1500);
   await viewerJson('/api/start', { method:'POST' });
   ownsViewer = true;
-
   if (!await waitForHealthy()) throw new Error('Deurbel werd niet wakker: geen decodeerbare liveframes');
   return ownsViewer;
 }
@@ -242,7 +293,6 @@ async function startFreshViewer() {
 function scheduleEventStop() {
   if (eventStopTimer) clearTimeout(eventStopTimer);
   if (!eventAbort) return;
-
   const delay = Math.max(500, eventStopAt - Date.now());
   eventStopTimer = setTimeout(() => {
     console.log('[security] Opnametijd voorbij; camera mag weer slapen.');
@@ -256,26 +306,23 @@ async function runTriggeredEvent(source) {
   state.eventStarting = true;
   state.lastError = null;
   eventOwnsViewer = false;
-  lastJpeg = null;
 
   try {
     eventOwnsViewer = await startFreshViewer();
-
     eventAbort = new AbortController();
     const response = await fetch(VIEWER + '/stream.mjpg?security-event=1&t=' + Date.now(), {
-      signal: eventAbort.signal,
-      cache: 'no-store',
+      signal:eventAbort.signal,
+      cache:'no-store',
     });
     if (!response.ok || !response.body) throw new Error(`MJPEG HTTP ${response.status}`);
 
     state.monitorConnected = true;
     state.eventStarting = false;
-    const parser = { pending: Buffer.alloc(0) };
+    const parser = { pending:Buffer.alloc(0) };
     let firstFrame = true;
 
     for await (const chunk of response.body) {
       parseMjpegChunk(parser, Buffer.from(chunk), (jpeg) => {
-        lastJpeg = jpeg;
         if (firstFrame) {
           firstFrame = false;
           startRecording(jpeg, source);
@@ -300,11 +347,9 @@ async function runTriggeredEvent(source) {
 
     if (recorder) finishRecording();
     await sleep(600);
-
     if (eventOwnsViewer) {
       try { await viewerJson('/api/stop', { method:'POST' }); } catch {}
     }
-
     eventOwnsViewer = false;
     eventStopAt = 0;
     eventPromise = null;
@@ -314,6 +359,9 @@ async function runTriggeredEvent(source) {
 
 function triggerEvent(source = 'sensor') {
   if (!state.securityEnabled) throw new Error('Beveiliging staat uit');
+  const storage = getStorageInfo();
+  if (!storage.ok) throw new Error(`Opnameschijf niet beschikbaar: ${storage.error || 'onbekende fout'}`);
+  if (storage.freeBytes < 100 * 1024 * 1024) throw new Error('Opnameschijf heeft minder dan 100 MB vrije ruimte');
 
   const now = Date.now();
   state.lastTriggerAt = now;
@@ -339,7 +387,6 @@ async function setSecurity(enabled) {
   state.lastError = null;
 
   if (state.securityEnabled) {
-    // Zuinige modus: bij inschakelen moet de camera juist slapen.
     if (!state.eventActive) {
       try { await viewerJson('/api/stop', { method:'POST' }); } catch {}
     }
@@ -352,6 +399,15 @@ async function setSecurity(enabled) {
   }
 }
 
+function setRetentionDays(days) {
+  const value = normalizeRetentionDays(days, -1);
+  if (value < 0) throw new Error('Ongeldige bewaartermijn');
+  state.retentionDays = value;
+  saveSettings();
+  cleanupOld();
+  console.log(`[security] Bewaartermijn aangepast: ${value === 0 ? 'onbeperkt' : value + ' dagen'}`);
+}
+
 function serveFile(req, res, filePath, type) {
   let stat;
   try { stat = fs.statSync(filePath); } catch { res.writeHead(404); res.end(); return; }
@@ -362,20 +418,20 @@ function serveFile(req, res, filePath, type) {
     const start = match?.[1] ? Number(match[1]) : 0;
     const end = match?.[2] ? Math.min(Number(match[2]), stat.size - 1) : stat.size - 1;
     res.writeHead(206, {
-      'Content-Type': type,
-      'Content-Length': end - start + 1,
-      'Content-Range': `bytes ${start}-${end}/${stat.size}`,
-      'Accept-Ranges': 'bytes',
+      'Content-Type':type,
+      'Content-Length':end - start + 1,
+      'Content-Range':`bytes ${start}-${end}/${stat.size}`,
+      'Accept-Ranges':'bytes',
     });
     fs.createReadStream(filePath, { start, end }).pipe(res);
     return;
   }
 
   res.writeHead(200, {
-    'Content-Type': type,
-    'Content-Length': stat.size,
-    'Accept-Ranges': 'bytes',
-    'Cache-Control': 'no-store',
+    'Content-Type':type,
+    'Content-Length':stat.size,
+    'Accept-Ranges':'bytes',
+    'Cache-Control':'no-store',
   });
   fs.createReadStream(filePath).pipe(res);
 }
@@ -384,12 +440,11 @@ async function proxyStream(req, res) {
   try {
     const response = await fetch(VIEWER + '/stream.mjpg?browser=1&t=' + Date.now(), { cache:'no-store' });
     res.writeHead(response.status, {
-      'Content-Type': response.headers.get('content-type') || 'multipart/x-mixed-replace; boundary=frame',
-      'Cache-Control': 'no-store, no-cache, must-revalidate',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no',
+      'Content-Type':response.headers.get('content-type') || 'multipart/x-mixed-replace; boundary=frame',
+      'Cache-Control':'no-store, no-cache, must-revalidate',
+      'Connection':'keep-alive',
+      'X-Accel-Buffering':'no',
     });
-
     for await (const chunk of response.body) {
       if (res.destroyed) break;
       if (!res.write(Buffer.from(chunk))) await new Promise((resolve) => res.once('drain', resolve));
@@ -423,14 +478,15 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/api/status') {
     refreshStorage();
     const viewer = await viewerStatus();
+    const storage = getStorageInfo();
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
     res.end(JSON.stringify({
       ...viewer,
-      security: {
+      security:{
         ...state,
-        retentionDays: config.retentionDays,
-        eventSeconds: config.eventSeconds,
-        wakeTimeoutSeconds: config.wakeTimeoutSeconds,
+        eventSeconds:config.eventSeconds,
+        wakeTimeoutSeconds:config.wakeTimeoutSeconds,
+        storage,
       },
     }));
     return;
@@ -456,6 +512,18 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'POST' && url.pathname === '/api/settings/retention') {
+    try {
+      setRetentionDays(url.searchParams.get('days'));
+      res.writeHead(200, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:true, retentionDays:state.retentionDays }));
+    } catch (error) {
+      res.writeHead(400, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:false, error:error.message }));
+    }
+    return;
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/trigger') {
     try {
       const source = url.searchParams.get('source') || req.headers['x-trigger-source'] || 'external';
@@ -472,28 +540,28 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && url.pathname === '/api/start') {
     try {
       const data = await viewerJson('/api/start', { method:'POST' });
-      res.writeHead(200, {'Content-Type':'application/json'});
+      res.writeHead(200, { 'Content-Type':'application/json' });
       res.end(JSON.stringify(data));
     } catch (error) {
-      res.writeHead(503, {'Content-Type':'application/json'});
-      res.end(JSON.stringify({ok:false,error:error.message}));
+      res.writeHead(503, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:false, error:error.message }));
     }
     return;
   }
 
   if (req.method === 'POST' && url.pathname === '/api/stop') {
     if (state.eventActive) {
-      res.writeHead(409, {'Content-Type':'application/json'});
-      res.end(JSON.stringify({ok:false,error:'Beveiligingsopname is bezig'}));
+      res.writeHead(409, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:false, error:'Beveiligingsopname is bezig' }));
       return;
     }
     try {
       const data = await viewerJson('/api/stop', { method:'POST' });
-      res.writeHead(200, {'Content-Type':'application/json'});
+      res.writeHead(200, { 'Content-Type':'application/json' });
       res.end(JSON.stringify(data));
     } catch (error) {
-      res.writeHead(503, {'Content-Type':'application/json'});
-      res.end(JSON.stringify({ok:false,error:error.message}));
+      res.writeHead(503, { 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:false, error:error.message }));
     }
     return;
   }
@@ -501,12 +569,12 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'DELETE' && url.pathname.startsWith('/api/recordings/')) {
     const name = decodeURIComponent(url.pathname.slice('/api/recordings/'.length));
     if (!/^motion_[A-Za-z0-9_-]+\.mp4$/.test(name)) { res.writeHead(400); res.end(); return; }
-    const base = name.slice(0,-4);
-    for (const ext of ['.mp4','.jpg']) {
-      try { fs.unlinkSync(path.join(config.recordingsDir, base+ext)); } catch {}
+    const base = name.slice(0, -4);
+    for (const ext of ['.mp4', '.jpg']) {
+      try { fs.unlinkSync(path.join(config.recordingsDir, base + ext)); } catch {}
     }
     refreshStorage();
-    res.writeHead(200, {'Content-Type':'application/json'});
+    res.writeHead(200, { 'Content-Type':'application/json' });
     res.end('{"ok":true}');
     return;
   }
@@ -531,10 +599,12 @@ const server = http.createServer(async (req, res) => {
 refreshStorage();
 cleanupOld();
 server.listen(config.port, '0.0.0.0', () => {
+  const storage = getStorageInfo();
   console.log(`Deurbel Security: http://0.0.0.0:${config.port} (viewer intern op ${config.viewerPort})`);
   console.log(`Zuinige modus: camera slaapt; trigger => ${config.eventSeconds}s opname`);
   console.log(`Trigger endpoint: POST /api/trigger?source=pir`);
-  console.log(`Opnames: ${config.recordingsDir} | bewaren: ${config.retentionDays} dagen`);
+  console.log(`Opnames: ${config.recordingsDir} | bewaren: ${state.retentionDays === 0 ? 'onbeperkt' : state.retentionDays + ' dagen'}`);
+  console.log(`[storage] ${storage.ok ? 'OK' : 'WAARSCHUWING'} · ${storage.label} · ${(storage.totalBytes / 1e12).toFixed(2)} TB totaal`);
 
   if (state.securityEnabled) {
     setTimeout(() => {
@@ -543,14 +613,10 @@ server.listen(config.port, '0.0.0.0', () => {
   }
 });
 
-process.on('SIGTERM', () => {
+function shutdown() {
   try { eventAbort?.abort(); } catch {}
   if (recorder) finishRecording();
   process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  try { eventAbort?.abort(); } catch {}
-  if (recorder) finishRecording();
-  process.exit(0);
-});
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
