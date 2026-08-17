@@ -14,6 +14,7 @@ const config = {
   mjpegFps: Number(process.env.MJPEG_FPS || 8),
   mjpegQuality: Number(process.env.MJPEG_QUALITY || 5),
   watchdogSeconds: Number(process.env.WATCHDOG_SECONDS || 8),
+  streamingQuality: Number(process.env.FORCE_STREAMING_QUALITY || 1),
 };
 
 const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'));
@@ -40,14 +41,20 @@ const state = {
   lastVideoAt: 0,
   lastFrameAt: 0,
   restartCount: 0,
+  streamingQuality: config.streamingQuality,
+  qualityAppliedAt: null,
+  qualityApplyFailures: 0,
+  h265Recoveries: 0,
 };
 
 let ws = null;
 let reconnectTimer = null;
 let recoveryTimer = null;
 let recoveryRunning = false;
+let lastH265RecoveryAt = 0;
 const decoders = new Map();
 const mjpegClients = new Set();
+const pendingRequests = new Map();
 let lastJpegFrame = null;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -104,6 +111,69 @@ function send(command, data = {}, messageId = `${command}-${Date.now()}`) {
   ws.send(JSON.stringify({ messageId, command, ...data }));
 }
 
+function request(command, data = {}, timeoutMs = 4000, messageId = `viewer-request-${Date.now()}-${Math.random().toString(16).slice(2)}`) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingRequests.delete(messageId);
+      reject(new Error(`${command} gaf binnen ${timeoutMs}ms geen antwoord`));
+    }, timeoutMs);
+
+    pendingRequests.set(messageId, { resolve, reject, timer, command });
+
+    try {
+      send(command, data, messageId);
+    } catch (error) {
+      clearTimeout(timer);
+      pendingRequests.delete(messageId);
+      reject(error);
+    }
+  });
+}
+
+function resolvePendingRequest(message) {
+  if (message?.type !== 'result' || !message.messageId) return;
+  const pending = pendingRequests.get(message.messageId);
+  if (!pending) return;
+
+  clearTimeout(pending.timer);
+  pendingRequests.delete(message.messageId);
+
+  if (message.success === false) {
+    const error = new Error(message.errorCode || `${pending.command} mislukt`);
+    error.code = message.errorCode;
+    pending.reject(error);
+  } else {
+    pending.resolve(message);
+  }
+}
+
+async function applyLowEncoding() {
+  if (!state.wsConnected || !state.listening) return false;
+
+  const messageId = `viewer-quality-${Date.now()}`;
+  try {
+    await request('device.set_property', {
+      serialNumber: config.serial,
+      name: 'videoStreamingQuality',
+      value: config.streamingQuality,
+    }, 4000, messageId);
+
+    state.streamingQuality = config.streamingQuality;
+    state.qualityAppliedAt = new Date().toISOString();
+    console.log(`[quality] Low Encoding bevestigd: videoStreamingQuality=${config.streamingQuality}`);
+
+    // Geef HomeBase/deurbel even tijd om de nieuwe encoderinstelling toe te passen
+    // voordat de P2P-livestream wordt gestart.
+    await sleep(1000);
+    return true;
+  } catch (error) {
+    state.qualityApplyFailures++;
+    console.warn(`[quality] Low Encoding instellen mislukt: ${error.code || error.message}`);
+    await sleep(300);
+    return false;
+  }
+}
+
 function connectEufy() {
   if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
 
@@ -132,6 +202,8 @@ function connectEufy() {
     } catch {
       return;
     }
+
+    resolvePendingRequest(data);
     handleEufyMessage(data);
   });
 
@@ -141,6 +213,12 @@ function connectEufy() {
     state.listening = false;
     state.eufyRunning = false;
     ws = null;
+
+    for (const [id, pending] of pendingRequests) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error('WebSocket verbroken'));
+      pendingRequests.delete(id);
+    }
 
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = setTimeout(connectEufy, 3000);
@@ -168,8 +246,16 @@ function inputFormat(codec) {
   return 'hevc';
 }
 
+function isH265(codec) {
+  const value = String(codec || '').toUpperCase();
+  return value.includes('265') || value.includes('HEVC');
+}
+
 function handleEufyMessage(msg) {
   if (msg.type === 'result') {
+    // Antwoorden op onze quality-request worden door request() afgehandeld.
+    if (String(msg.messageId || '').startsWith('viewer-quality-')) return;
+
     if (msg.messageId === 'viewer-start-listening' && msg.success !== false) {
       state.listening = true;
       console.log('Eufy events worden ontvangen');
@@ -205,7 +291,7 @@ function handleEufyMessage(msg) {
   if (event.event === 'livestream started') {
     console.log('Eufy livestream gestart');
     state.eufyRunning = true;
-    state.recovering = false;
+    if (!recoveryRunning && !recoveryTimer) state.recovering = false;
     return;
   }
 
@@ -228,7 +314,7 @@ function handleEufyMessage(msg) {
   const fps = Number(metadata.videoFPS || state.fps || 15);
 
   state.eufyRunning = true;
-  state.recovering = false;
+  if (!recoveryRunning && !recoveryTimer) state.recovering = false;
   state.codec = codec;
   state.width = width || state.width;
   state.height = height || state.height;
@@ -256,6 +342,23 @@ function handleEufyMessage(msg) {
 
   stats.chunks++;
   stats.bytes += buffer.length;
+
+  // De T8213 kan Low Encoding (H264) en High Encoding (H265) leveren.
+  // De gecombineerde H265-uitvoer van deze Dual-deurbel is niet betrouwbaar
+  // decodeerbaar door onze FFmpeg-pipe. Zodra H265 verschijnt, starten we geen
+  // zinloze decoder maar passen we Low Encoding opnieuw toe en bouwen we de
+  // P2P-stream volledig opnieuw op.
+  if (isH265(codec) && state.frames === 0) {
+    const now = Date.now();
+    if (now - lastH265RecoveryAt >= 7000) {
+      lastH265RecoveryAt = now;
+      state.h265Recoveries++;
+      console.warn(`[quality] H265 ontvangen (${key}); stream opnieuw opbouwen met Low Encoding.`);
+      scheduleRecovery('H265 ontvangen; Low Encoding opnieuw toepassen', 250);
+    }
+    return;
+  }
+
   feedDecoder(key, codec, fps, buffer);
 }
 
@@ -305,6 +408,10 @@ function startDecoder(key, codec, fps) {
   child.stderr.on('data', (chunk) => {
     const text = chunk.toString().trim();
     if (!text) return;
+
+    // Deze swscale-waarschuwing is onschuldig en vervuilde de logs sterk.
+    if (text.includes('deprecated pixel format used')) return;
+
     const clipped = text.slice(-1200);
     state.lastFfmpeg = `[${key}] ${clipped}`;
     if (state.streams[key]) state.streams[key].lastFfmpeg = clipped;
@@ -363,6 +470,7 @@ function parseJpegOutput(decoder, chunk) {
     state.frames++;
     state.lastFrameAt = now;
     state.recovering = false;
+    state.lastError = null;
     if (state.streams[decoder.key]) state.streams[decoder.key].frames++;
 
     const selected = state.selectedStream ? decoders.get(state.selectedStream) : null;
@@ -431,6 +539,7 @@ function scheduleRecovery(reason, delay = 700) {
     recoverStream(reason).catch((error) => {
       setError(`Herstel mislukt: ${error.message}`);
       state.recovering = false;
+      recoveryRunning = false;
     });
   }, delay);
 }
@@ -466,6 +575,14 @@ async function recoverStream(reason) {
   state.lastVideoAt = 0;
   state.lastFrameAt = 0;
 
+  await applyLowEncoding();
+
+  if (!state.active) {
+    recoveryRunning = false;
+    state.recovering = false;
+    return;
+  }
+
   try {
     send('device.start_livestream', { serialNumber: config.serial });
   } finally {
@@ -487,11 +604,17 @@ async function startViewer() {
   clearCounters();
   state.active = true;
   state.eufyRunning = false;
-  state.recovering = false;
+  state.recovering = true;
   state.restartCount = 0;
+  state.h265Recoveries = 0;
   state.startedAt = new Date().toISOString();
   state.lastError = null;
 
+  // Belangrijk: eerst Low/Low Encoding daadwerkelijk laten bevestigen door
+  // eufy-security-ws, daarna pas de P2P-livestream openen.
+  await applyLowEncoding();
+
+  if (!state.active) return;
   send('device.start_livestream', { serialNumber: config.serial });
 }
 
@@ -529,6 +652,11 @@ setInterval(() => {
 
   if (state.lastVideoAt && now - state.lastVideoAt > timeoutMs) {
     scheduleRecovery('Videodata is gestopt', 300);
+    return;
+  }
+
+  if (!state.lastFrameAt && state.lastVideoAt && now - state.lastVideoAt < timeoutMs && now - started > graceMs) {
+    scheduleRecovery('Wel videodata maar nog geen decodeerbare frames', 300);
     return;
   }
 
@@ -609,6 +737,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(config.port, '0.0.0.0', () => {
   console.log(`Deurbel Viewer: http://0.0.0.0:${config.port}`);
   console.log(`Watchdog: ${config.watchdogSeconds}s zonder nieuw beeld => automatische herstart`);
+  console.log(`[quality] Iedere streamstart forceert videoStreamingQuality=${config.streamingQuality} (Low / Low Encoding)`);
   if (!config.serial) console.warn('LET OP: EUFY_SERIAL is nog niet ingesteld.');
 });
 
