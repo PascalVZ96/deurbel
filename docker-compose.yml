@@ -7,6 +7,7 @@ services:
     environment:
       TZ: Europe/Amsterdam
       EUFY_SERIAL: ${EUFY_SERIAL}
+      EUFY_STATION_SERIAL: ${EUFY_STATION_SERIAL:-T8030T2324151AF5}
       EUFY_WS_URL: ${EUFY_WS_URL:-ws://127.0.0.1:3000}
       WEB_PORT: ${WEB_PORT:-8090}
       VIEWER_PORT: ${VIEWER_PORT:-8092}
