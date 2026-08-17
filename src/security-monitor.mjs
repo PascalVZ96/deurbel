@@ -261,10 +261,11 @@ async function waitForHealthy(timeoutSeconds = config.wakeTimeoutSeconds) {
   return false;
 }
 
-async function startFreshViewer() {
+async function startFreshViewer(onOwnsViewer = null) {
   let status = await viewerStatus();
   if (!status.wsConnected || !status.listening) throw new Error('eufy-security-ws is niet gereed');
   let ownsViewer = !status.active;
+  if (ownsViewer) onOwnsViewer?.();
 
   if (status.active && !status.streamHealthy) {
     console.warn('[security] Bestaande stream is ongezond; eerst volledig stoppen.');
@@ -272,11 +273,13 @@ async function startFreshViewer() {
     await sleep(1200);
     status = await viewerStatus();
     ownsViewer = true;
+    onOwnsViewer?.();
   }
 
   if (!status.active) {
-    await viewerJson('/api/start', { method:'POST' });
     ownsViewer = true;
+    onOwnsViewer?.();
+    await viewerJson('/api/start', { method:'POST' });
   }
 
   if (await waitForHealthy()) return ownsViewer;
@@ -284,8 +287,9 @@ async function startFreshViewer() {
   console.warn('[security] Geen beeld na eerste start; geforceerde tweede poging.');
   try { await viewerJson('/api/stop', { method:'POST' }); } catch {}
   await sleep(1500);
-  await viewerJson('/api/start', { method:'POST' });
   ownsViewer = true;
+  onOwnsViewer?.();
+  await viewerJson('/api/start', { method:'POST' });
   if (!await waitForHealthy()) throw new Error('Deurbel werd niet wakker: geen decodeerbare liveframes');
   return ownsViewer;
 }
@@ -308,7 +312,7 @@ async function runTriggeredEvent(source) {
   eventOwnsViewer = false;
 
   try {
-    eventOwnsViewer = await startFreshViewer();
+    eventOwnsViewer = await startFreshViewer(() => { eventOwnsViewer = true; });
     eventAbort = new AbortController();
     const response = await fetch(VIEWER + '/stream.mjpg?security-event=1&t=' + Date.now(), {
       signal:eventAbort.signal,
@@ -348,7 +352,12 @@ async function runTriggeredEvent(source) {
     if (recorder) finishRecording();
     await sleep(600);
     if (eventOwnsViewer) {
-      try { await viewerJson('/api/stop', { method:'POST' }); } catch {}
+      try {
+        await viewerJson('/api/stop', { method:'POST' });
+        console.log('[security] Camera terug in slaapstand na beveiligingsevent.');
+      } catch (error) {
+        console.warn(`[security] Camera stoppen na event mislukt: ${error.message}`);
+      }
     }
     eventOwnsViewer = false;
     eventStopAt = 0;
