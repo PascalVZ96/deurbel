@@ -26,6 +26,9 @@
     .pill { border:1px solid #303846; background:#20252e; border-radius:999px; padding:7px 10px; color:#b9c3d4; font-size:12px; }
     .pill.trigger { color:#111; background:#f6c453; border-color:#f6c453; }
     .pill.recording { color:#fff; background:#9e2635; border-color:#b63243; }
+    .pill.good { color:#c7f9d8; background:#183126; border-color:#28533d; }
+    .pill.warn { color:#ffe6a2; background:#372d17; border-color:#665221; }
+    .pill.danger { color:#ffd2d8; background:#3b1f24; border-color:#68333c; }
     .camera-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:start; }
     .camera-card { background:var(--card); border:1px solid var(--line); border-radius:18px; overflow:hidden; box-shadow:0 18px 60px rgba(0,0,0,.25); }
     .camera-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 14px; font-size:14px; }
@@ -75,7 +78,11 @@
     .recording-card video { width:100%; aspect-ratio:16/10; display:block; background:#050607; object-fit:contain; }
     .recording-meta { padding:11px 12px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
     .recording-time { font-weight:650; font-size:13px; }
-    .recording-size { color:var(--muted); font-size:12px; margin-top:3px; }
+    .recording-size { color:var(--muted); font-size:12px; margin-top:5px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .recording-source { display:inline-flex; align-items:center; border-radius:999px; padding:3px 7px; font-size:10px; font-weight:750; border:1px solid #3b4657; background:#222a35; color:#c8d3e4; }
+    .recording-source.homebase { background:#183126; border-color:#28533d; color:#c7f9d8; }
+    .recording-source.live-test { background:#372d17; border-color:#665221; color:#ffe6a2; }
+    .recording-source.legacy-live { background:#2c2635; border-color:#4d4260; color:#d8ccef; }
     .delete { padding:8px 10px; background:#2a2f38; color:#dce3ee; font-size:12px; }
     .empty { border:1px dashed #343c49; border-radius:15px; padding:28px; color:var(--muted); text-align:center; grid-column:1/-1; }
     details { margin-top:18px; border:1px solid #282e38; border-radius:14px; background:var(--card); overflow:hidden; }
@@ -92,7 +99,7 @@
 
   <section class="security-card">
     <div class="security-main"><div class="shield">🛡️</div><div><div id="securityTitle" class="security-title">Beveiliging uit</div><div id="securitySub" class="security-sub">De camera is alleen actief wanneer je handmatig live kijkt.</div></div></div>
-    <div class="security-stats"><span id="triggerPill" class="pill">Beveiliging uit</span><span id="recordingPill" class="pill">Geen opname</span><span id="storagePill" class="pill">0 opnames</span></div>
+    <div class="security-stats"><span id="homebasePill" class="pill">HomeBase controleren…</span><span id="triggerPill" class="pill">Beveiliging uit</span><span id="recordingPill" class="pill">Geen opname</span><span id="storagePill" class="pill">0 opnames</span></div>
   </section>
 
   <section class="camera-grid">
@@ -123,7 +130,7 @@
   <section id="recordings" class="recordings"><div class="empty">Nog geen bewegingsopnames.</div></section>
 
   <details><summary>Technische informatie</summary><section class="details">
-    <div class="kv"><span>Eufy verbinding</span><b id="ws">-</b></div><div class="kv"><span>Viewer</span><b id="active">-</b></div><div class="kv"><span>Ontvangen</span><b id="source">-</b></div><div class="kv"><span>Actieve videobron</span><b id="selected">-</b></div><div class="kv"><span>Frames</span><b id="frames">-</b></div><div class="kv"><span>Kijkers</span><b id="clients">-</b></div><div class="kv"><span>Automatische herstarts</span><b id="restarts">-</b></div><div class="kv"><span>Laatste trigger</span><b id="lastTrigger">-</b></div><div class="kv"><span>Triggerbron</span><b id="triggerSource">-</b></div><div class="kv"><span>Opnameduur</span><b id="eventSeconds">-</b></div>
+    <div class="kv"><span>Eufy verbinding</span><b id="ws">-</b></div><div class="kv"><span>HomeBase-monitor</span><b id="homebaseStatus">-</b></div><div class="kv"><span>Laatste HomeBase-check</span><b id="homebaseCheck">-</b></div><div class="kv"><span>Laatste HomeBase-import</span><b id="homebaseImport">-</b></div><div class="kv"><span>Viewer</span><b id="active">-</b></div><div class="kv"><span>Ontvangen</span><b id="source">-</b></div><div class="kv"><span>Actieve videobron</span><b id="selected">-</b></div><div class="kv"><span>Frames</span><b id="frames">-</b></div><div class="kv"><span>Kijkers</span><b id="clients">-</b></div><div class="kv"><span>Automatische herstarts</span><b id="restarts">-</b></div><div class="kv"><span>Laatste live-trigger</span><b id="lastTrigger">-</b></div><div class="kv"><span>Live-triggerbron</span><b id="triggerSource">-</b></div><div class="kv"><span>Live-opnameduur</span><b id="eventSeconds">-</b></div>
   </section></details>
 </main>
 
@@ -141,7 +148,7 @@ async function loadRecordings(){
   try{
     const d=await api('/api/recordings'),list=d.recordings||[],root=$('recordings');
     if(!list.length){root.innerHTML='<div class="empty">Nog geen bewegingsopnames.</div>';return}
-    root.innerHTML=list.slice(0,50).map(i=>`<article class="recording-card"><video controls preload="metadata" ${i.thumbnailUrl?`poster="${i.thumbnailUrl}"`:''} src="${i.videoUrl}"></video><div class="recording-meta"><div><div class="recording-time">${fmtDate(i.createdAt)}</div><div class="recording-size">${fmtBytes(i.totalSize||i.size)}</div></div><button class="delete" data-name="${i.name}">Verwijderen</button></div></article>`).join('');
+    root.innerHTML=list.slice(0,50).map(i=>`<article class="recording-card"><video controls preload="metadata" ${i.thumbnailUrl?`poster="${i.thumbnailUrl}"`:''} src="${i.videoUrl}"></video><div class="recording-meta"><div><div class="recording-time">${fmtDate(i.createdAt)}</div><div class="recording-size"><span class="recording-source ${i.sourceType||'live'}">${i.sourceLabel||'Opname'}</span><span>${fmtBytes(i.totalSize||i.size)}</span></div></div><button class="delete" data-name="${i.name}">Verwijderen</button></div></article>`).join('');
     root.querySelectorAll('.delete').forEach(b=>b.addEventListener('click',async()=>{if(!confirm('Deze opname verwijderen?'))return;await api('/api/recordings/'+encodeURIComponent(b.dataset.name),{method:'DELETE'});lastRecordingCount=-1;await loadRecordings();await refresh()}));
   }catch(e){console.warn(e)}
 }
@@ -161,12 +168,15 @@ function updateStorage(storage){
 
 async function refresh(){
   try{
-    const s=await api('/api/status'),sec=s.security||{},storage=sec.storage||{},ready=s.wsConnected&&s.listening&&s.serialConfigured,healthy=s.streamHealthy;
-    if(sec.eventActive){$('badge').className='badge '+(healthy?'good':'warn');$('badge').textContent=sec.recording?'● Opname':'● Camera wakker maken…'}
-    else if(sec.securityEnabled&&!s.active){$('badge').className='badge '+(storage.ok?'good':'danger');$('badge').textContent=storage.ok?'🛡 Stand-by':'⚠ Opslagprobleem'}
+    const s=await api('/api/status'),sec=s.security||{},storage=sec.storage||{},hb=s.homebase||{},ready=s.wsConnected&&s.listening&&s.serialConfigured,healthy=s.streamHealthy;
+    if(sec.eventActive){$('badge').className='badge '+(healthy?'good':'warn');$('badge').textContent=sec.recording?'● Live-opname':'● Camera wakker maken…'}
+    else if(sec.securityEnabled&&!s.active){const ok=storage.ok&&hb.healthy;$('badge').className='badge '+(ok?'good':(!storage.ok?'danger':'warn'));$('badge').textContent=ok?'🛡 Stand-by':(!storage.ok?'⚠ Opslagprobleem':'⚠ HomeBase controleren')}
     else{$('badge').className='badge '+(healthy?'good':(s.recovering?'warn':(!ready?'danger':'')));$('badge').textContent=s.active?(healthy?'● Live':(s.recovering?'● Herverbinden…':'● Verbinden…')):(ready?'Gereed':'Niet gereed')}
 
     $('ws').textContent=s.wsConnected?'Verbonden':'Niet verbonden';
+    $('homebaseStatus').textContent=hb.healthy?'Actief':(hb.connected?'Verbonden, geen recente check':'Niet actief');
+    $('homebaseCheck').textContent=hb.lastSuccessAt?`${fmtDate(hb.lastSuccessAt)}${Number.isFinite(hb.ageSeconds)?` · ${hb.ageSeconds}s geleden`:''}`:'-';
+    $('homebaseImport').textContent=hb.lastImportAt?`${fmtDate(hb.lastImportAt)}${hb.lastImportedFile?` · ${hb.lastImportedFile}`:''}`:'Nog geen import sinds statusregistratie';
     $('active').textContent=s.active?(healthy?'Live':'Herstellen'):(sec.securityEnabled?'Slapend':'Gestopt');
     $('source').textContent=s.codec?`${s.codec} ${s.width||'?'}×${s.height||'?'} ${s.fps||'?'}fps`:'-';
     $('selected').textContent=s.selectedStream||(s.active?'Automatisch zoeken…':'-');
@@ -176,10 +186,14 @@ async function refresh(){
     if(lastRetention!==sec.retentionDays){retentionSelect.value=String(sec.retentionDays);lastRetention=sec.retentionDays}
     updateStorage(storage);
 
+    const hp=$('homebasePill');
+    hp.className='pill '+(hb.healthy?'good':(hb.connected?'warn':'danger'));
+    hp.textContent=hb.healthy?'● HomeBase actief':(hb.connected?'● HomeBase wacht':'⚠ HomeBase offline');
+
     $('securityTitle').textContent=sec.securityEnabled?'Beveiliging actief · HomeBase automatisch':'Beveiliging uit';
-    $('securitySub').textContent=sec.securityEnabled?(sec.eventActive?'Live-trigger actief: de camera is tijdelijk wakker voor deze test/externe opname.':storage.ok?'Camera slaapt. Nieuwe HomeBase-bewegingsopnames worden automatisch geïmporteerd.':'Camera slaapt, maar importeren is geblokkeerd totdat de HDD weer beschikbaar is.'):'De camera is alleen actief wanneer je handmatig live kijkt.';
+    $('securitySub').textContent=sec.securityEnabled?(sec.eventActive?'Live-trigger actief: de camera is tijdelijk wakker voor deze test/externe opname.':!storage.ok?'Camera slaapt, maar importeren is geblokkeerd totdat de HDD weer beschikbaar is.':hb.healthy?'Camera slaapt. De HomeBase wordt automatisch gecontroleerd en nieuwe opnames worden naar de HDD gekopieerd.':'Camera slaapt, maar de HomeBase-monitor heeft momenteel geen gezonde recente controle.'):'De camera is alleen actief wanneer je handmatig live kijkt.';
     securityBtn.textContent=sec.securityEnabled?'🛡 Beveiliging uitschakelen':'🛡 Beveiliging inschakelen';securityBtn.classList.toggle('off',!!sec.securityEnabled);
-    const tp=$('triggerPill');tp.textContent=sec.eventActive?'Live-trigger actief':(sec.securityEnabled?'HomeBase actief':'Beveiliging uit');tp.classList.toggle('trigger',!!sec.eventActive);
+    const tp=$('triggerPill');tp.textContent=sec.eventActive?'Live-trigger actief':(sec.securityEnabled?'Live-trigger stand-by':'Beveiliging uit');tp.classList.toggle('trigger',!!sec.eventActive);
     const rp=$('recordingPill');rp.textContent=sec.recording?'● Live-opname bezig':(sec.securityEnabled?'HomeBase automatisch':'Geen opname');rp.classList.toggle('recording',!!sec.recording);
     $('storagePill').textContent=`${sec.recordingsCount||0} opnames · ${fmtBytes(sec.storageBytes||0)}`;
 
