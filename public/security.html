@@ -77,7 +77,13 @@
     .recording-filters { display:flex; gap:8px; flex-wrap:wrap; }
     .recording-toolbar select { padding:8px 32px 8px 10px; font-size:12px; }
     .recording-count { color:var(--muted); font-size:12px; }
-    .recordings { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
+    .recordings { display:block; }
+    .recording-day { margin:0 0 24px; }
+    .recording-day:last-child { margin-bottom:0; }
+    .recording-day-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 10px; padding:0 2px 8px; border-bottom:1px solid #2a313c; }
+    .recording-day-title { font-size:15px; font-weight:750; text-transform:capitalize; }
+    .recording-day-count { color:var(--muted); font-size:11px; }
+    .recording-day-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
     .recording-card { background:var(--card); border:1px solid var(--line); border-radius:15px; overflow:hidden; }
     .recording-card video { width:100%; aspect-ratio:16/10; display:block; background:#050607; object-fit:contain; }
     .recording-meta { padding:11px 12px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
@@ -91,7 +97,7 @@
     .recording-action { display:inline-flex; align-items:center; justify-content:center; text-decoration:none; border-radius:10px; padding:8px 9px; background:#232a34; color:#dce3ee; font-size:12px; font-weight:700; border:1px solid #313a47; }
     .recording-action:hover { background:#2b3441; }
     .delete { padding:8px 9px; background:#2a2f38; color:#dce3ee; font-size:12px; border:1px solid #353c47; }
-    .empty { border:1px dashed #343c49; border-radius:15px; padding:28px; color:var(--muted); text-align:center; grid-column:1/-1; }
+    .empty { border:1px dashed #343c49; border-radius:15px; padding:28px; color:var(--muted); text-align:center; }
     details { margin-top:18px; border:1px solid #282e38; border-radius:14px; background:var(--card); overflow:hidden; }
     summary { cursor:pointer; padding:13px 16px; color:#aeb6c5; user-select:none; }
     .details { padding:0 16px 15px; display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:12px; font-size:13px; }
@@ -158,6 +164,8 @@ function fmtBytes(b){b=Number(b)||0;if(b<1024)return b+' B';if(b<1024**2)return(
 function fmtDate(v){return v?new Date(v).toLocaleString('nl-NL',{dateStyle:'short',timeStyle:'medium'}):'-'}
 function retentionText(days){return Number(days)===0?'Onbeperkt bewaren':`${days} dagen bewaren`}
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function dayKey(v){const d=new Date(v);if(!Number.isFinite(d.getTime()))return 'onbekend';const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`}
+function dayLabel(v){const d=new Date(v);if(!Number.isFinite(d.getTime()))return 'Onbekende datum';const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate()),day=new Date(d.getFullYear(),d.getMonth(),d.getDate()),diff=Math.round((today-day)/86400000);if(diff===0)return 'Vandaag';if(diff===1)return 'Gisteren';return d.toLocaleDateString('nl-NL',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
 function matchesPeriod(item,period){
   if(period==='all')return true;
   const t=new Date(item.createdAt).getTime();if(!Number.isFinite(t))return false;
@@ -171,12 +179,16 @@ function matchesSource(item,source){
   if(source==='live')return item.sourceType==='live'||item.sourceType==='live-test';
   return true;
 }
+function recordingCard(i){return `<article class="recording-card"><video controls preload="metadata" ${i.thumbnailUrl?`poster="${esc(i.thumbnailUrl)}"`:''} src="${esc(i.videoUrl)}"></video><div class="recording-meta"><div><div class="recording-time">${fmtDate(i.createdAt)}</div><div class="recording-size"><span class="recording-source ${esc(i.sourceType||'live')}">${esc(i.sourceLabel||'Opname')}</span><span>${fmtBytes(i.totalSize||i.size)}</span></div></div><div class="recording-actions"><a class="recording-action" href="${esc(i.videoUrl)}" download="${esc(i.name)}">Download</a><button class="delete" data-name="${esc(i.name)}">Verwijderen</button></div></div></article>`}
 function renderRecordings(){
   const root=$('recordings'),source=sourceFilter.value,period=periodFilter.value;
   const list=allRecordings.filter(i=>matchesSource(i,source)&&matchesPeriod(i,period));
-  $('recordingCount').textContent=list.length===allRecordings.length?`${list.length} opnames`:`${list.length} van ${allRecordings.length} opnames`;
+  const visible=list.slice(0,100);
+  $('recordingCount').textContent=list.length>100?`${list.length} gevonden · nieuwste 100 weergegeven`:(list.length===allRecordings.length?`${list.length} opnames`:`${list.length} van ${allRecordings.length} opnames`);
   if(!list.length){root.innerHTML=`<div class="empty">${allRecordings.length?'Geen opnames binnen dit filter.':'Nog geen bewegingsopnames.'}</div>`;return}
-  root.innerHTML=list.slice(0,100).map(i=>`<article class="recording-card"><video controls preload="metadata" ${i.thumbnailUrl?`poster="${esc(i.thumbnailUrl)}"`:''} src="${esc(i.videoUrl)}"></video><div class="recording-meta"><div><div class="recording-time">${fmtDate(i.createdAt)}</div><div class="recording-size"><span class="recording-source ${esc(i.sourceType||'live')}">${esc(i.sourceLabel||'Opname')}</span><span>${fmtBytes(i.totalSize||i.size)}</span></div></div><div class="recording-actions"><a class="recording-action" href="${esc(i.videoUrl)}" download="${esc(i.name)}">Download</a><button class="delete" data-name="${esc(i.name)}">Verwijderen</button></div></div></article>`).join('');
+  const groups=new Map();
+  for(const item of visible){const key=dayKey(item.createdAt);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(item)}
+  root.innerHTML=[...groups.values()].map(items=>`<section class="recording-day"><div class="recording-day-head"><div class="recording-day-title">${esc(dayLabel(items[0]?.createdAt))}</div><div class="recording-day-count">${items.length} ${items.length===1?'opname':'opnames'}</div></div><div class="recording-day-grid">${items.map(recordingCard).join('')}</div></section>`).join('');
   root.querySelectorAll('.delete').forEach(b=>b.addEventListener('click',async()=>{if(!confirm('Deze opname verwijderen?'))return;await api('/api/recordings/'+encodeURIComponent(b.dataset.name),{method:'DELETE'});lastRecordingCount=-1;await loadRecordings();await refresh()}));
 }
 async function loadRecordings(){
