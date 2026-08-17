@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Voordeur beveiliging</title>
   <style>
-    :root { color-scheme: dark; --bg:#0f1217; --card:#191d24; --line:#2b313d; --muted:#9aa6ba; }
+    :root { color-scheme:dark; --bg:#0f1217; --card:#191d24; --line:#2b313d; --muted:#9aa6ba; --good:#56d38a; --warn:#f6c453; --danger:#ff7587; }
     * { box-sizing:border-box; }
     body { margin:0; min-height:100vh; background:var(--bg); color:#f5f7fb; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; padding:24px; }
     .app { width:min(100%,1180px); margin:0 auto; }
@@ -40,14 +40,34 @@
     .placeholder { position:absolute; inset:0; display:grid; place-items:center; text-align:center; padding:24px; color:#9ea8ba; }
     .placeholder strong { display:block; color:#fff; font-size:18px; margin-bottom:6px; }
     .controls { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
-    button { border:0; border-radius:12px; padding:13px 18px; font:inherit; font-weight:750; cursor:pointer; }
+    button,select { border:0; border-radius:12px; font:inherit; }
+    button { padding:13px 18px; font-weight:750; cursor:pointer; }
     button:disabled { opacity:.42; cursor:not-allowed; }
+    select { padding:9px 34px 9px 11px; background:#252b34; color:#f4f6fa; border:1px solid #353e4b; }
     #start { background:#fff; color:#101216; }
     #stop { background:#2b3039; color:#fff; }
     #security { background:#235d3b; color:#eafff1; }
     #security.off { background:#762d38; color:#fff; }
     #testTrigger { background:#72581d; color:#fff4cd; }
     .error { display:none; margin-top:12px; padding:12px 14px; border-radius:12px; background:#341c20; color:#ffd1d7; border:1px solid #63323a; white-space:pre-wrap; }
+    .info { margin-top:14px; border:1px solid #2a3340; border-radius:14px; background:#151a21; padding:13px 15px; color:#aeb8c8; font-size:13px; line-height:1.5; }
+    code { background:#222833; border-radius:6px; padding:2px 5px; color:#e5ebf5; }
+    .storage-card { margin-top:24px; padding:17px; border:1px solid var(--line); background:var(--card); border-radius:17px; }
+    .storage-top { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+    .storage-name { display:flex; gap:11px; align-items:center; }
+    .disk-icon { width:42px; height:42px; border-radius:13px; display:grid; place-items:center; background:#242a34; font-size:21px; }
+    .storage-title { font-weight:750; }
+    .storage-sub { color:var(--muted); font-size:12px; margin-top:3px; }
+    .storage-status { font-size:12px; font-weight:700; padding:7px 10px; border-radius:999px; background:#173127; color:#c7f9d8; }
+    .storage-status.warn { background:#3b2024; color:#ffd2d8; }
+    .storage-bar { margin-top:16px; height:10px; border-radius:999px; overflow:hidden; background:#282f39; }
+    .storage-bar > div { height:100%; width:0; background:#6f8fbf; transition:width .25s ease; }
+    .storage-grid { margin-top:13px; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+    .storage-stat { padding:10px 11px; border-radius:12px; background:#151920; border:1px solid #262d37; }
+    .storage-stat span { display:block; color:#8996aa; font-size:11px; margin-bottom:4px; }
+    .storage-stat b { font-size:14px; }
+    .retention-row { margin-top:14px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; border-top:1px solid #292f39; padding-top:13px; }
+    .retention-row label { font-size:13px; color:#bdc6d4; }
     .section-head { display:flex; align-items:end; justify-content:space-between; gap:12px; margin:28px 0 12px; }
     .section-head p { margin:3px 0 0; color:var(--muted); font-size:13px; }
     .recordings { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
@@ -58,14 +78,12 @@
     .recording-size { color:var(--muted); font-size:12px; margin-top:3px; }
     .delete { padding:8px 10px; background:#2a2f38; color:#dce3ee; font-size:12px; }
     .empty { border:1px dashed #343c49; border-radius:15px; padding:28px; color:var(--muted); text-align:center; grid-column:1/-1; }
-    .info { margin-top:14px; border:1px solid #2a3340; border-radius:14px; background:#151a21; padding:13px 15px; color:#aeb8c8; font-size:13px; line-height:1.5; }
-    code { background:#222833; border-radius:6px; padding:2px 5px; color:#e5ebf5; }
     details { margin-top:18px; border:1px solid #282e38; border-radius:14px; background:var(--card); overflow:hidden; }
     summary { cursor:pointer; padding:13px 16px; color:#aeb6c5; user-select:none; }
     .details { padding:0 16px 15px; display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:12px; font-size:13px; }
     .kv span { display:block; color:#8893a6; margin-bottom:3px; }
     .kv b { font-weight:600; word-break:break-word; }
-    @media (max-width:760px) { body { padding:12px; } .topbar { align-items:start; flex-direction:column; } .camera-grid { grid-template-columns:1fr; } .security-card { align-items:flex-start; } }
+    @media (max-width:760px) { body { padding:12px; } .topbar { align-items:start; flex-direction:column; } .camera-grid { grid-template-columns:1fr; } .security-card { align-items:flex-start; } .storage-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
   </style>
 </head>
 <body>
@@ -73,141 +91,110 @@
   <div class="topbar"><div><h1>Voordeur</h1><div class="sub">Eufy Dual · zuinige beveiliging & opnames</div></div><div id="badge" class="badge">Verbinden…</div></div>
 
   <section class="security-card">
-    <div class="security-main">
-      <div class="shield">🛡️</div>
-      <div>
-        <div id="securityTitle" class="security-title">Beveiliging uit</div>
-        <div id="securitySub" class="security-sub">De camera is alleen actief wanneer je handmatig live kijkt.</div>
-      </div>
-    </div>
-    <div class="security-stats">
-      <span id="triggerPill" class="pill">Wacht op sensor</span>
-      <span id="recordingPill" class="pill">Geen opname</span>
-      <span id="storagePill" class="pill">0 opnames</span>
-    </div>
+    <div class="security-main"><div class="shield">🛡️</div><div><div id="securityTitle" class="security-title">Beveiliging uit</div><div id="securitySub" class="security-sub">De camera is alleen actief wanneer je handmatig live kijkt.</div></div></div>
+    <div class="security-stats"><span id="triggerPill" class="pill">Wacht op sensor</span><span id="recordingPill" class="pill">Geen opname</span><span id="storagePill" class="pill">0 opnames</span></div>
   </section>
 
   <section class="camera-grid">
-    <article class="camera-card">
-      <div class="camera-head"><strong>Hoofdcamera</strong><span>Bovenste lens · 4:3</span></div>
-      <div class="camera-view top"><img id="topStream" class="crop-source" alt="Livebeeld hoofdcamera"><div class="placeholder dual-placeholder"><div><strong>Camera slaapt</strong>Dat spaart de accu. Gebruik “Live bekijken” of een bewegingstrigger.</div></div></div>
-    </article>
-    <article class="camera-card">
-      <div class="camera-head"><strong>Pakketcamera</strong><span>Onderste lens · 16:9</span></div>
-      <div class="camera-view bottom"><img id="bottomStream" class="crop-source" alt="Livebeeld pakketcamera"><div class="placeholder dual-placeholder"><div><strong>Camera slaapt</strong>Bij beweging wordt hij automatisch tijdelijk wakker.</div></div></div>
-    </article>
+    <article class="camera-card"><div class="camera-head"><strong>Hoofdcamera</strong><span>Bovenste lens · 4:3</span></div><div class="camera-view top"><img id="topStream" class="crop-source" alt="Livebeeld hoofdcamera"><div class="placeholder dual-placeholder"><div><strong>Camera slaapt</strong>Dat spaart de accu. Gebruik “Live bekijken” of een bewegingstrigger.</div></div></div></article>
+    <article class="camera-card"><div class="camera-head"><strong>Pakketcamera</strong><span>Onderste lens · 16:9</span></div><div class="camera-view bottom"><img id="bottomStream" class="crop-source" alt="Livebeeld pakketcamera"><div class="placeholder dual-placeholder"><div><strong>Camera slaapt</strong>Bij beweging wordt hij automatisch tijdelijk wakker.</div></div></div></article>
   </section>
 
-  <div class="controls">
-    <button id="security">🛡 Beveiliging inschakelen</button>
-    <button id="testTrigger">⚡ Test beweging</button>
-    <button id="start">▶ Live bekijken</button>
-    <button id="stop" disabled>■ Stop</button>
-  </div>
-
-  <div class="info">In de zuinige modus blijft de deurbelstream <strong>uit</strong>. Een externe bewegingssensor kan straks een opname starten met <code>POST /api/trigger</code>. De knop “Test beweging” doet nu exact hetzelfde, zodat we het systeem alvast kunnen testen.</div>
+  <div class="controls"><button id="security">🛡 Beveiliging inschakelen</button><button id="testTrigger">⚡ Test beweging</button><button id="start">▶ Live bekijken</button><button id="stop" disabled>■ Stop</button></div>
+  <div class="info">In de zuinige modus blijft de deurbelstream <strong>uit</strong>. Een externe bewegingssensor kan straks een opname starten met <code>POST /api/trigger</code>. De knop “Test beweging” doet nu exact hetzelfde.</div>
   <div id="error" class="error"></div>
+
+  <section class="storage-card">
+    <div class="storage-top">
+      <div class="storage-name"><div class="disk-icon">💾</div><div><div id="diskLabel" class="storage-title">Opnameschijf</div><div id="diskSub" class="storage-sub">Opslag controleren…</div></div></div>
+      <div id="diskStatus" class="storage-status">Controleren…</div>
+    </div>
+    <div class="storage-bar"><div id="diskBar"></div></div>
+    <div class="storage-grid">
+      <div class="storage-stat"><span>Totale capaciteit</span><b id="diskTotal">-</b></div>
+      <div class="storage-stat"><span>Vrij</span><b id="diskFree">-</b></div>
+      <div class="storage-stat"><span>Schijf gebruikt</span><b id="diskUsed">-</b></div>
+      <div class="storage-stat"><span>Deurbelopnames</span><b id="recordingsUsed">-</b></div>
+    </div>
+    <div class="retention-row"><label for="retentionSelect"><strong>Bewaartermijn</strong><br><span class="storage-sub">Oudere opnames worden automatisch verwijderd.</span></label><select id="retentionSelect"><option value="7">7 dagen</option><option value="14">14 dagen</option><option value="30">30 dagen</option><option value="60">60 dagen</option><option value="90">90 dagen</option><option value="180">180 dagen</option><option value="365">1 jaar</option><option value="0">Onbeperkt</option></select></div>
+  </section>
 
   <div class="section-head"><div><h2>Opnames</h2><p>De camera wordt alleen tijdelijk wakker na een bewegingstrigger.</p></div><div id="retention" class="pill">14 dagen bewaren</div></div>
   <section id="recordings" class="recordings"><div class="empty">Nog geen bewegingsopnames.</div></section>
 
   <details><summary>Technische informatie</summary><section class="details">
-    <div class="kv"><span>Eufy verbinding</span><b id="ws">-</b></div>
-    <div class="kv"><span>Viewer</span><b id="active">-</b></div>
-    <div class="kv"><span>Ontvangen</span><b id="source">-</b></div>
-    <div class="kv"><span>Actieve videobron</span><b id="selected">-</b></div>
-    <div class="kv"><span>Frames</span><b id="frames">-</b></div>
-    <div class="kv"><span>Kijkers</span><b id="clients">-</b></div>
-    <div class="kv"><span>Automatische herstarts</span><b id="restarts">-</b></div>
-    <div class="kv"><span>Laatste trigger</span><b id="lastTrigger">-</b></div>
-    <div class="kv"><span>Triggerbron</span><b id="triggerSource">-</b></div>
-    <div class="kv"><span>Opnameduur</span><b id="eventSeconds">-</b></div>
+    <div class="kv"><span>Eufy verbinding</span><b id="ws">-</b></div><div class="kv"><span>Viewer</span><b id="active">-</b></div><div class="kv"><span>Ontvangen</span><b id="source">-</b></div><div class="kv"><span>Actieve videobron</span><b id="selected">-</b></div><div class="kv"><span>Frames</span><b id="frames">-</b></div><div class="kv"><span>Kijkers</span><b id="clients">-</b></div><div class="kv"><span>Automatische herstarts</span><b id="restarts">-</b></div><div class="kv"><span>Laatste trigger</span><b id="lastTrigger">-</b></div><div class="kv"><span>Triggerbron</span><b id="triggerSource">-</b></div><div class="kv"><span>Opnameduur</span><b id="eventSeconds">-</b></div>
   </section></details>
 </main>
 
 <script>
-const $=id=>document.getElementById(id),startBtn=$('start'),stopBtn=$('stop'),securityBtn=$('security'),testBtn=$('testTrigger'),topStream=$('topStream'),bottomStream=$('bottomStream'),errorBox=$('error'),placeholders=[...document.querySelectorAll('.dual-placeholder')];
-let lastActive=false,lastRecordingCount=-1;
-
+const $=id=>document.getElementById(id),startBtn=$('start'),stopBtn=$('stop'),securityBtn=$('security'),testBtn=$('testTrigger'),retentionSelect=$('retentionSelect'),topStream=$('topStream'),bottomStream=$('bottomStream'),errorBox=$('error'),placeholders=[...document.querySelectorAll('.dual-placeholder')];
+let lastActive=false,lastRecordingCount=-1,lastRetention=null;
 async function api(path,options={}){const r=await fetch(path,{cache:'no-store',...options}),d=await r.json();if(!r.ok)throw new Error(d.error||'Onbekende fout');return d}
 function showStreams(){const t=Date.now();topStream.src='/stream.mjpg?view=top&t='+t;bottomStream.src='/stream.mjpg?view=bottom&t='+t;topStream.style.display='block';bottomStream.style.display='block';placeholders.forEach(p=>p.style.display='none')}
 function hideStreams(){topStream.removeAttribute('src');bottomStream.removeAttribute('src');topStream.style.display='none';bottomStream.style.display='none';placeholders.forEach(p=>p.style.display='grid')}
-function fmtBytes(b){if(!b)return'0 MB';if(b<1024**2)return Math.round(b/1024)+' KB';if(b<1024**3)return(b/1024**2).toFixed(1)+' MB';return(b/1024**3).toFixed(2)+' GB'}
+function fmtBytes(b){b=Number(b)||0;if(b<1024)return b+' B';if(b<1024**2)return(b/1024).toFixed(b<10*1024?1:0)+' KB';if(b<1024**3)return(b/1024**2).toFixed(1)+' MB';if(b<1024**4)return(b/1024**3).toFixed(2)+' GB';return(b/1024**4).toFixed(2)+' TB'}
 function fmtDate(v){return v?new Date(v).toLocaleString('nl-NL',{dateStyle:'short',timeStyle:'medium'}):'-'}
+function retentionText(days){return Number(days)===0?'Onbeperkt bewaren':`${days} dagen bewaren`}
 
 async function loadRecordings(){
   try{
     const d=await api('/api/recordings'),list=d.recordings||[],root=$('recordings');
     if(!list.length){root.innerHTML='<div class="empty">Nog geen bewegingsopnames.</div>';return}
-    root.innerHTML=list.slice(0,50).map(i=>`<article class="recording-card"><video controls preload="metadata" ${i.thumbnailUrl?`poster="${i.thumbnailUrl}"`:''} src="${i.videoUrl}"></video><div class="recording-meta"><div><div class="recording-time">${fmtDate(i.createdAt)}</div><div class="recording-size">${fmtBytes(i.size)}</div></div><button class="delete" data-name="${i.name}">Verwijderen</button></div></article>`).join('');
-    root.querySelectorAll('.delete').forEach(b=>b.addEventListener('click',async()=>{if(!confirm('Deze opname verwijderen?'))return;await api('/api/recordings/'+encodeURIComponent(b.dataset.name),{method:'DELETE'});loadRecordings()}));
+    root.innerHTML=list.slice(0,50).map(i=>`<article class="recording-card"><video controls preload="metadata" ${i.thumbnailUrl?`poster="${i.thumbnailUrl}"`:''} src="${i.videoUrl}"></video><div class="recording-meta"><div><div class="recording-time">${fmtDate(i.createdAt)}</div><div class="recording-size">${fmtBytes(i.totalSize||i.size)}</div></div><button class="delete" data-name="${i.name}">Verwijderen</button></div></article>`).join('');
+    root.querySelectorAll('.delete').forEach(b=>b.addEventListener('click',async()=>{if(!confirm('Deze opname verwijderen?'))return;await api('/api/recordings/'+encodeURIComponent(b.dataset.name),{method:'DELETE'});lastRecordingCount=-1;await loadRecordings();await refresh()}));
   }catch(e){console.warn(e)}
+}
+
+function updateStorage(storage){
+  const ok=!!storage?.ok,usedPercent=Math.max(0,Math.min(100,Number(storage?.usedPercent)||0));
+  $('diskLabel').textContent=storage?.label||'Opnameschijf';
+  $('diskSub').textContent=ok?'Opnames worden veilig op de aparte HDD opgeslagen.':(storage?.error||'Opnameschijf niet beschikbaar');
+  $('diskStatus').textContent=ok?'● HDD online':'● HDD probleem';
+  $('diskStatus').classList.toggle('warn',!ok);
+  $('diskTotal').textContent=storage?.totalBytes?fmtBytes(storage.totalBytes):'-';
+  $('diskFree').textContent=storage?.freeBytes?fmtBytes(storage.freeBytes):'-';
+  $('diskUsed').textContent=storage?.totalBytes?`${fmtBytes(storage.usedBytes)} · ${usedPercent.toFixed(1)}%`:'-';
+  $('recordingsUsed').textContent=fmtBytes(storage?.recordingsBytes||0);
+  $('diskBar').style.width=usedPercent+'%';
 }
 
 async function refresh(){
   try{
-    const s=await api('/api/status'),sec=s.security||{},ready=s.wsConnected&&s.listening&&s.serialConfigured,healthy=s.streamHealthy;
-
-    if(sec.eventActive){
-      $('badge').className='badge '+(healthy?'good':'warn');
-      $('badge').textContent=sec.recording?'● Opname':'● Camera wakker maken…';
-    }else if(sec.securityEnabled&&!s.active){
-      $('badge').className='badge good';
-      $('badge').textContent='🛡 Stand-by';
-    }else{
-      $('badge').className='badge '+(healthy?'good':(s.recovering?'warn':(!ready?'danger':'')));
-      $('badge').textContent=s.active?(healthy?'● Live':(s.recovering?'● Herverbinden…':'● Verbinden…')):(ready?'Gereed':'Niet gereed');
-    }
+    const s=await api('/api/status'),sec=s.security||{},storage=sec.storage||{},ready=s.wsConnected&&s.listening&&s.serialConfigured,healthy=s.streamHealthy;
+    if(sec.eventActive){$('badge').className='badge '+(healthy?'good':'warn');$('badge').textContent=sec.recording?'● Opname':'● Camera wakker maken…'}
+    else if(sec.securityEnabled&&!s.active){$('badge').className='badge '+(storage.ok?'good':'danger');$('badge').textContent=storage.ok?'🛡 Stand-by':'⚠ Opslagprobleem'}
+    else{$('badge').className='badge '+(healthy?'good':(s.recovering?'warn':(!ready?'danger':'')));$('badge').textContent=s.active?(healthy?'● Live':(s.recovering?'● Herverbinden…':'● Verbinden…')):(ready?'Gereed':'Niet gereed')}
 
     $('ws').textContent=s.wsConnected?'Verbonden':'Niet verbonden';
     $('active').textContent=s.active?(healthy?'Live':'Herstellen'):(sec.securityEnabled?'Slapend':'Gestopt');
     $('source').textContent=s.codec?`${s.codec} ${s.width||'?'}×${s.height||'?'} ${s.fps||'?'}fps`:'-';
     $('selected').textContent=s.selectedStream||(s.active?'Automatisch zoeken…':'-');
-    $('frames').textContent=s.frames??0;
-    $('clients').textContent=s.clients??0;
-    $('restarts').textContent=s.restartCount??0;
-    $('lastTrigger').textContent=sec.lastTriggerAt?fmtDate(sec.lastTriggerAt):'-';
-    $('triggerSource').textContent=sec.lastTriggerSource||'-';
-    $('eventSeconds').textContent=`${sec.eventSeconds||30} sec`;
-    $('retention').textContent=`${sec.retentionDays||14} dagen bewaren`;
+    $('frames').textContent=s.frames??0;$('clients').textContent=s.clients??0;$('restarts').textContent=s.restartCount??0;
+    $('lastTrigger').textContent=sec.lastTriggerAt?fmtDate(sec.lastTriggerAt):'-';$('triggerSource').textContent=sec.lastTriggerSource||'-';$('eventSeconds').textContent=`${sec.eventSeconds||30} sec`;
+    $('retention').textContent=retentionText(sec.retentionDays);
+    if(lastRetention!==sec.retentionDays){retentionSelect.value=String(sec.retentionDays);lastRetention=sec.retentionDays}
+    updateStorage(storage);
 
     $('securityTitle').textContent=sec.securityEnabled?'Beveiliging actief · zuinige modus':'Beveiliging uit';
-    $('securitySub').textContent=sec.securityEnabled?(sec.eventActive?'Beweging gemeld: de camera is tijdelijk wakker voor de opname.':'Camera slaapt en wacht op een externe bewegingssensor.'):'De camera is alleen actief wanneer je handmatig live kijkt.';
-    securityBtn.textContent=sec.securityEnabled?'🛡 Beveiliging uitschakelen':'🛡 Beveiliging inschakelen';
-    securityBtn.classList.toggle('off',!!sec.securityEnabled);
-
-    const tp=$('triggerPill');
-    tp.textContent=sec.eventActive?'Beweging gedetecteerd':(sec.lastTriggerAt?'Laatste trigger '+new Date(sec.lastTriggerAt).toLocaleTimeString('nl-NL'):'Wacht op sensor');
-    tp.classList.toggle('trigger',!!sec.eventActive);
-
-    const rp=$('recordingPill');
-    rp.textContent=sec.recording?'● Opname bezig':'Geen opname';
-    rp.classList.toggle('recording',!!sec.recording);
+    $('securitySub').textContent=sec.securityEnabled?(sec.eventActive?'Beweging gemeld: de camera is tijdelijk wakker voor de opname.':storage.ok?'Camera slaapt en wacht op een bewegingstrigger.':'Camera slaapt, maar opnemen is geblokkeerd totdat de HDD weer beschikbaar is.'):'De camera is alleen actief wanneer je handmatig live kijkt.';
+    securityBtn.textContent=sec.securityEnabled?'🛡 Beveiliging uitschakelen':'🛡 Beveiliging inschakelen';securityBtn.classList.toggle('off',!!sec.securityEnabled);
+    const tp=$('triggerPill');tp.textContent=sec.eventActive?'Beweging gedetecteerd':(sec.lastTriggerAt?'Laatste trigger '+new Date(sec.lastTriggerAt).toLocaleTimeString('nl-NL'):'Wacht op sensor');tp.classList.toggle('trigger',!!sec.eventActive);
+    const rp=$('recordingPill');rp.textContent=sec.recording?'● Opname bezig':'Geen opname';rp.classList.toggle('recording',!!sec.recording);
     $('storagePill').textContent=`${sec.recordingsCount||0} opnames · ${fmtBytes(sec.storageBytes||0)}`;
 
-    startBtn.disabled=!ready||s.active;
-    stopBtn.disabled=!s.active||sec.eventActive;
-    securityBtn.disabled=!ready&&!sec.securityEnabled;
-    testBtn.disabled=!ready||!sec.securityEnabled;
-
-    if(s.active&&!lastActive)showStreams();
-    if(!s.active&&lastActive)hideStreams();
-    lastActive=s.active;
-
+    startBtn.disabled=!ready||s.active;stopBtn.disabled=!s.active||sec.eventActive;securityBtn.disabled=!ready&&!sec.securityEnabled;testBtn.disabled=!ready||!sec.securityEnabled||!storage.ok;
+    if(s.active&&!lastActive)showStreams();if(!s.active&&lastActive)hideStreams();lastActive=s.active;
     if((sec.recordingsCount??0)!==lastRecordingCount){lastRecordingCount=sec.recordingsCount??0;loadRecordings()}
-
-    const err=sec.lastError||s.lastError;
-    if(err){errorBox.textContent=err;errorBox.style.display='block'}else errorBox.style.display='none';
-  }catch(e){
-    $('badge').textContent='Paginafout';$('badge').className='badge danger';errorBox.textContent=e.message;errorBox.style.display='block';
-  }
+    const err=sec.lastError||s.lastError;if(err){errorBox.textContent=err;errorBox.style.display='block'}else errorBox.style.display='none';
+  }catch(e){$('badge').textContent='Paginafout';$('badge').className='badge danger';errorBox.textContent=e.message;errorBox.style.display='block'}
 }
 
 securityBtn.addEventListener('click',async()=>{securityBtn.disabled=true;try{const s=await api('/api/status'),on=!!s.security?.securityEnabled;await api(on?'/api/security/off':'/api/security/on',{method:'POST'})}catch(e){errorBox.textContent=e.message;errorBox.style.display='block'}refresh()});
 testBtn.addEventListener('click',async()=>{testBtn.disabled=true;try{await api('/api/trigger?source=test-knop',{method:'POST'})}catch(e){errorBox.textContent=e.message;errorBox.style.display='block'}refresh()});
 startBtn.addEventListener('click',async()=>{startBtn.disabled=true;try{await api('/api/start',{method:'POST'});showStreams();lastActive=true}catch(e){errorBox.textContent=e.message;errorBox.style.display='block'}refresh()});
 stopBtn.addEventListener('click',async()=>{stopBtn.disabled=true;try{await api('/api/stop',{method:'POST'})}catch(e){errorBox.textContent=e.message;errorBox.style.display='block'}refresh()});
-
+retentionSelect.addEventListener('change',async()=>{retentionSelect.disabled=true;try{const d=await api('/api/settings/retention?days='+encodeURIComponent(retentionSelect.value),{method:'POST'});lastRetention=d.retentionDays;await refresh();await loadRecordings()}catch(e){errorBox.textContent=e.message;errorBox.style.display='block'}finally{retentionSelect.disabled=false}});
 refresh();loadRecordings();setInterval(refresh,1000);setInterval(loadRecordings,15000);
 </script>
 </body>
