@@ -73,6 +73,10 @@
     .retention-row label { font-size:13px; color:#bdc6d4; }
     .section-head { display:flex; align-items:end; justify-content:space-between; gap:12px; margin:28px 0 12px; }
     .section-head p { margin:3px 0 0; color:var(--muted); font-size:13px; }
+    .recording-toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:0 0 12px; padding:11px 12px; border:1px solid var(--line); background:#151a21; border-radius:13px; }
+    .recording-filters { display:flex; gap:8px; flex-wrap:wrap; }
+    .recording-toolbar select { padding:8px 32px 8px 10px; font-size:12px; }
+    .recording-count { color:var(--muted); font-size:12px; }
     .recordings { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
     .recording-card { background:var(--card); border:1px solid var(--line); border-radius:15px; overflow:hidden; }
     .recording-card video { width:100%; aspect-ratio:16/10; display:block; background:#050607; object-fit:contain; }
@@ -83,14 +87,17 @@
     .recording-source.homebase { background:#183126; border-color:#28533d; color:#c7f9d8; }
     .recording-source.live-test { background:#372d17; border-color:#665221; color:#ffe6a2; }
     .recording-source.legacy-live { background:#2c2635; border-color:#4d4260; color:#d8ccef; }
-    .delete { padding:8px 10px; background:#2a2f38; color:#dce3ee; font-size:12px; }
+    .recording-actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+    .recording-action { display:inline-flex; align-items:center; justify-content:center; text-decoration:none; border-radius:10px; padding:8px 9px; background:#232a34; color:#dce3ee; font-size:12px; font-weight:700; border:1px solid #313a47; }
+    .recording-action:hover { background:#2b3441; }
+    .delete { padding:8px 9px; background:#2a2f38; color:#dce3ee; font-size:12px; border:1px solid #353c47; }
     .empty { border:1px dashed #343c49; border-radius:15px; padding:28px; color:var(--muted); text-align:center; grid-column:1/-1; }
     details { margin-top:18px; border:1px solid #282e38; border-radius:14px; background:var(--card); overflow:hidden; }
     summary { cursor:pointer; padding:13px 16px; color:#aeb6c5; user-select:none; }
     .details { padding:0 16px 15px; display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:12px; font-size:13px; }
     .kv span { display:block; color:#8893a6; margin-bottom:3px; }
     .kv b { font-weight:600; word-break:break-word; }
-    @media (max-width:760px) { body { padding:12px; } .topbar { align-items:start; flex-direction:column; } .camera-grid { grid-template-columns:1fr; } .security-card { align-items:flex-start; } .storage-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (max-width:760px) { body { padding:12px; } .topbar { align-items:start; flex-direction:column; } .camera-grid { grid-template-columns:1fr; } .security-card { align-items:flex-start; } .storage-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .recording-toolbar { align-items:stretch; } .recording-filters { width:100%; } .recording-filters select { flex:1; min-width:135px; } }
   </style>
 </head>
 <body>
@@ -127,6 +134,13 @@
   </section>
 
   <div class="section-head"><div><h2>Opnames</h2><p>Originele HomeBase-opnames worden automatisch opgeslagen; de livestream blijft uit.</p></div><div id="retention" class="pill">14 dagen bewaren</div></div>
+  <div class="recording-toolbar">
+    <div class="recording-filters">
+      <select id="sourceFilter" aria-label="Filter op bron"><option value="all">Alle bronnen</option><option value="homebase">HomeBase origineel</option><option value="live">Live-trigger</option><option value="legacy-live">Oude live-opnames</option></select>
+      <select id="periodFilter" aria-label="Filter op periode"><option value="all">Alle datums</option><option value="today">Vandaag</option><option value="7">Laatste 7 dagen</option><option value="30">Laatste 30 dagen</option></select>
+    </div>
+    <div id="recordingCount" class="recording-count">Opnames laden…</div>
+  </div>
   <section id="recordings" class="recordings"><div class="empty">Nog geen bewegingsopnames.</div></section>
 
   <details><summary>Technische informatie</summary><section class="details">
@@ -135,22 +149,38 @@
 </main>
 
 <script>
-const $=id=>document.getElementById(id),startBtn=$('start'),stopBtn=$('stop'),securityBtn=$('security'),testBtn=$('testTrigger'),retentionSelect=$('retentionSelect'),topStream=$('topStream'),bottomStream=$('bottomStream'),errorBox=$('error'),placeholders=[...document.querySelectorAll('.dual-placeholder')];
-let lastActive=false,lastRecordingCount=-1,lastRetention=null;
+const $=id=>document.getElementById(id),startBtn=$('start'),stopBtn=$('stop'),securityBtn=$('security'),testBtn=$('testTrigger'),retentionSelect=$('retentionSelect'),sourceFilter=$('sourceFilter'),periodFilter=$('periodFilter'),topStream=$('topStream'),bottomStream=$('bottomStream'),errorBox=$('error'),placeholders=[...document.querySelectorAll('.dual-placeholder')];
+let lastActive=false,lastRecordingCount=-1,lastRetention=null,allRecordings=[];
 async function api(path,options={}){const r=await fetch(path,{cache:'no-store',...options}),d=await r.json();if(!r.ok)throw new Error(d.error||'Onbekende fout');return d}
 function showStreams(){const t=Date.now();topStream.src='/stream.mjpg?view=top&t='+t;bottomStream.src='/stream.mjpg?view=bottom&t='+t;topStream.style.display='block';bottomStream.style.display='block';placeholders.forEach(p=>p.style.display='none')}
 function hideStreams(){topStream.removeAttribute('src');bottomStream.removeAttribute('src');topStream.style.display='none';bottomStream.style.display='none';placeholders.forEach(p=>p.style.display='grid')}
 function fmtBytes(b){b=Number(b)||0;if(b<1024)return b+' B';if(b<1024**2)return(b/1024).toFixed(b<10*1024?1:0)+' KB';if(b<1024**3)return(b/1024**2).toFixed(1)+' MB';if(b<1024**4)return(b/1024**3).toFixed(2)+' GB';return(b/1024**4).toFixed(2)+' TB'}
 function fmtDate(v){return v?new Date(v).toLocaleString('nl-NL',{dateStyle:'short',timeStyle:'medium'}):'-'}
 function retentionText(days){return Number(days)===0?'Onbeperkt bewaren':`${days} dagen bewaren`}
-
+function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function matchesPeriod(item,period){
+  if(period==='all')return true;
+  const t=new Date(item.createdAt).getTime();if(!Number.isFinite(t))return false;
+  if(period==='today'){const d=new Date(),start=new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();return t>=start}
+  const days=Number(period);return Number.isFinite(days)&&t>=Date.now()-days*86400000;
+}
+function matchesSource(item,source){
+  if(source==='all')return true;
+  if(source==='homebase')return item.sourceType==='homebase';
+  if(source==='legacy-live')return item.sourceType==='legacy-live';
+  if(source==='live')return item.sourceType==='live'||item.sourceType==='live-test';
+  return true;
+}
+function renderRecordings(){
+  const root=$('recordings'),source=sourceFilter.value,period=periodFilter.value;
+  const list=allRecordings.filter(i=>matchesSource(i,source)&&matchesPeriod(i,period));
+  $('recordingCount').textContent=list.length===allRecordings.length?`${list.length} opnames`:`${list.length} van ${allRecordings.length} opnames`;
+  if(!list.length){root.innerHTML=`<div class="empty">${allRecordings.length?'Geen opnames binnen dit filter.':'Nog geen bewegingsopnames.'}</div>`;return}
+  root.innerHTML=list.slice(0,100).map(i=>`<article class="recording-card"><video controls preload="metadata" ${i.thumbnailUrl?`poster="${esc(i.thumbnailUrl)}"`:''} src="${esc(i.videoUrl)}"></video><div class="recording-meta"><div><div class="recording-time">${fmtDate(i.createdAt)}</div><div class="recording-size"><span class="recording-source ${esc(i.sourceType||'live')}">${esc(i.sourceLabel||'Opname')}</span><span>${fmtBytes(i.totalSize||i.size)}</span></div></div><div class="recording-actions"><a class="recording-action" href="${esc(i.videoUrl)}" download="${esc(i.name)}">Download</a><button class="delete" data-name="${esc(i.name)}">Verwijderen</button></div></div></article>`).join('');
+  root.querySelectorAll('.delete').forEach(b=>b.addEventListener('click',async()=>{if(!confirm('Deze opname verwijderen?'))return;await api('/api/recordings/'+encodeURIComponent(b.dataset.name),{method:'DELETE'});lastRecordingCount=-1;await loadRecordings();await refresh()}));
+}
 async function loadRecordings(){
-  try{
-    const d=await api('/api/recordings'),list=d.recordings||[],root=$('recordings');
-    if(!list.length){root.innerHTML='<div class="empty">Nog geen bewegingsopnames.</div>';return}
-    root.innerHTML=list.slice(0,50).map(i=>`<article class="recording-card"><video controls preload="metadata" ${i.thumbnailUrl?`poster="${i.thumbnailUrl}"`:''} src="${i.videoUrl}"></video><div class="recording-meta"><div><div class="recording-time">${fmtDate(i.createdAt)}</div><div class="recording-size"><span class="recording-source ${i.sourceType||'live'}">${i.sourceLabel||'Opname'}</span><span>${fmtBytes(i.totalSize||i.size)}</span></div></div><button class="delete" data-name="${i.name}">Verwijderen</button></div></article>`).join('');
-    root.querySelectorAll('.delete').forEach(b=>b.addEventListener('click',async()=>{if(!confirm('Deze opname verwijderen?'))return;await api('/api/recordings/'+encodeURIComponent(b.dataset.name),{method:'DELETE'});lastRecordingCount=-1;await loadRecordings();await refresh()}));
-  }catch(e){console.warn(e)}
+  try{const d=await api('/api/recordings');allRecordings=d.recordings||[];renderRecordings()}catch(e){console.warn(e)}
 }
 
 function updateStorage(storage){
@@ -204,6 +234,8 @@ async function refresh(){
   }catch(e){$('badge').textContent='Paginafout';$('badge').className='badge danger';errorBox.textContent=e.message;errorBox.style.display='block'}
 }
 
+sourceFilter.addEventListener('change',renderRecordings);
+periodFilter.addEventListener('change',renderRecordings);
 securityBtn.addEventListener('click',async()=>{securityBtn.disabled=true;try{const s=await api('/api/status'),on=!!s.security?.securityEnabled;await api(on?'/api/security/off':'/api/security/on',{method:'POST'})}catch(e){errorBox.textContent=e.message;errorBox.style.display='block'}refresh()});
 testBtn.addEventListener('click',async()=>{testBtn.disabled=true;try{await api('/api/trigger?source=test-knop',{method:'POST'})}catch(e){errorBox.textContent=e.message;errorBox.style.display='block'}refresh()});
 startBtn.addEventListener('click',async()=>{startBtn.disabled=true;try{await api('/api/start',{method:'POST'});showStreams();lastActive=true}catch(e){errorBox.textContent=e.message;errorBox.style.display='block'}refresh()});
