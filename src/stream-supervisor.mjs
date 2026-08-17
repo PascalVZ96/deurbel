@@ -60,19 +60,13 @@ async function check() {
     return;
   }
 
-  const healthy = Boolean(status.streamHealthy);
-  if (healthy) {
+  if (status.streamHealthy) {
     unhealthySince = 0;
     return;
   }
 
-  // Belangrijk voor de T8213: er kan volop H265-data binnenkomen terwijl
-  // FFmpeg nog geen enkel decodeerbaar frame produceert. De oude watchdog
-  // keek in dat geval alleen naar lastFrameAt != 0 en bleef daardoor hangen.
   if (!unhealthySince) unhealthySince = Date.now();
-  const age = Date.now() - unhealthySince;
-
-  if (age < unhealthyForMs) return;
+  if (Date.now() - unhealthySince < unhealthyForMs) return;
 
   const reason = !status.lastFrameAt || Number(status.frames || 0) === 0
     ? 'wel videodata maar geen decodeerbare frames'
@@ -82,7 +76,12 @@ async function check() {
 }
 
 console.log(`[supervisor] Actief: controle elke ${checkEveryMs}ms, herstel na ${unhealthyForMs}ms ongezond beeld`);
-setInterval(() => { check().catch((error) => console.error('[supervisor]', error)); }, checkEveryMs).unref();
 
-// Houd het proces actief.
-await new Promise(() => {});
+// NIET unref-en: deze interval houdt het supervisorproces bewust actief.
+setInterval(() => {
+  check().catch((error) => console.error('[supervisor]', error));
+}, checkEveryMs);
+
+setTimeout(() => {
+  check().catch((error) => console.error('[supervisor]', error));
+}, 1000);
