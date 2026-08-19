@@ -1,0 +1,59 @@
+mqtt:
+  enabled: false
+
+# Eerste AI-fase: volledig lokaal op de Intel iGPU.
+detectors:
+  ov:
+    type: openvino
+    device: GPU
+
+model:
+  width: 300
+  height: 300
+  input_tensor: nhwc
+  input_pixel_format: bgr
+  path: /openvino-model/ssdlite_mobilenet_v2.xml
+  labelmap_path: /openvino-model/coco_91cl_bkgr.txt
+
+# De Eufy-viewer levert nu MJPEG. Frigate/go2rtc zet dat eenmalig om naar H264,
+# zodat detectie en later 24/7-opname niet elk een aparte cameraverbinding nodig hebben.
+go2rtc:
+  streams:
+    voordeur:
+      - "ffmpeg:http://127.0.0.1:8090/stream.mjpg#video=h264#hardware"
+
+face_recognition:
+  enabled: true
+  model_size: small
+
+cameras:
+  voordeur:
+    enabled: true
+    ffmpeg:
+      hwaccel_args: preset-vaapi
+      inputs:
+        - path: rtsp://127.0.0.1:8554/voordeur
+          input_args: preset-rtsp-restream
+          roles:
+            - detect
+    detect:
+      enabled: true
+      width: 640
+      height: 920
+      fps: 5
+    objects:
+      track:
+        - person
+        - dog
+        - cat
+    # Het livebeeld is 640x920: boven 640x480, 80px scheiding, onder 640x360.
+    # In fase 1 analyseert Frigate alleen de hoofdcamera. Zo krijgen we geen
+    # dubbele persoonsdetecties uit beide lenzen. De pakketcamera splitsen we later
+    # als tweede AI-stream zodra de 24/7-keten bewezen stabiel is.
+    motion:
+      mask:
+        - 0.000,0.522,1.000,0.522,1.000,1.000,0.000,1.000
+    snapshots:
+      enabled: true
+    record:
+      enabled: false
