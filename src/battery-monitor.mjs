@@ -5,7 +5,8 @@ const C = {
   dev: process.env.EUFY_SERIAL || '',
   ws: process.env.EUFY_WS_URL || 'ws://127.0.0.1:3000',
   data: process.env.DATA_DIR || '/data',
-  pollMs: Math.max(60_000, Number(process.env.BATTERY_POLL_MS || 900_000)),
+  pollMs: Math.max(60_000, Number(process.env.BATTERY_POLL_MS || 300_000)),
+  chargingPollMs: Math.max(60_000, Number(process.env.BATTERY_CHARGING_POLL_MS || 120_000)),
   lowPercent: Math.max(1, Math.min(99, Number(process.env.BATTERY_LOW_PERCENT || 20))),
   criticalPercent: Math.max(1, Math.min(99, Number(process.env.BATTERY_CRITICAL_PERCENT || 10))),
 };
@@ -17,7 +18,9 @@ const startedAt = new Date().toISOString();
 let ws = null;
 let reconnectTimer = null;
 let pollTimer = null;
+let refreshTimer = null;
 let queryTimer = null;
+let pendingRefreshId = null;
 let pendingQueryId = null;
 let stopping = false;
 let listening = false;
@@ -31,9 +34,12 @@ let status = {
   batteryPercent: null,
   batteryTemperature: null,
   chargingStatus: null,
+  charging: false,
   wifiSignalLevel: null,
   lastReadAt: null,
   lastChangedAt: null,
+  lastCloudRefreshAt: null,
+  lastCloudRefreshError: null,
   source: null,
   health: 'unknown',
   trend24h: null,
@@ -104,6 +110,7 @@ function writeStatus() {
   status.health = healthFor(status.batteryPercent);
   status.samples = history.length;
   status.trend24h = computeTrend();
+  status.charging = Number(status.chargingStatus) === 1;
   atomicWrite(statusFile, { ...status, updatedAt: new Date().toISOString() });
 }
 
@@ -113,9 +120,6 @@ function addHistory(percent, at) {
   const last = history.at(-1);
   const lastMs = last?.at ? new Date(last.at).getTime() : 0;
   const nowMs = new Date(timestamp).getTime();
-
-  // Maximaal één periodieke sample per 10 minuten, maar een echte procentwijziging
-  // wordt altijd vastgelegd. Zo blijft de geschiedenis klein en bruikbaar.
   if (last && Number(last.percent) === percent && nowMs - lastMs < 10 * 60 * 1000) return;
 
   history.push({ at: timestamp, percent });
@@ -137,10 +141,12 @@ function applyProperties(properties, source = 'query') {
   }
 
   const previous = status.batteryPercent;
+  const previousCharging = status.charging;
   const now = new Date().toISOString();
   status.batteryPercent = battery;
   status.batteryTemperature = temperature;
   status.chargingStatus = charging;
+  status.charging = charging === 1;
   status.wifiSignalLevel = wifi;
   status.lastReadAt = now;
   status.source = source;
@@ -151,8 +157,8 @@ function applyProperties(properties, source = 'query') {
   addHistory(battery, now);
   writeStatus();
 
-  if (previous !== battery) {
-    console.log(`[battery] Deurbelaccu: ${battery}%${temperature !== null ? ` · ${temperature}°C` : ''}.`);
+  if (previous !== battery || previousCharging !== status.charging) {
+    console.log(`[battery] Deurbelaccu: ${battery}%${status.charging ? ' · opladen' : ''}${temperature !== null ? ` · ${temperature}°C` : ''}.`);
   }
 }
 
@@ -177,9 +183,18 @@ function applyPropertyEvent(event) {
       console.log(`[battery] Accu gewijzigd: ${previous ?? '?'}% -> ${value}%.`);
     }
     addHistory(value, now);
-  } else if (name === 'batteryTemperature') status.batteryTemperature = value;
-  else if (name === 'chargingStatus') status.chargingStatus = value;
-  else if (name === 'wifiSignalLevel') status.wifiSignalLevel = value;
+  } else if (name === 'batteryTemperature') {
+    status.batteryTemperature = value;
+  } else if (name === 'chargingStatus') {
+    const wasCharging = status.charging;
+    status.chargingStatus = value;
+    status.charging = value === 1;
+    if (wasCharging !== status.charging) {
+      console.log(`[battery] Laadstatus: ${status.charging ? 'opladen' : `niet opladen (raw ${value})`}.`);
+    }
+  } else if (name === 'wifiSignalLevel') {
+    status.wifiSignalLevel = value;
+  }
 
   writeStatus();
   return true;
@@ -190,19 +205,33 @@ function send(command, extra = {}, messageId = `${command}-${Date.now()}`) {
   ws.send(JSON.stringify({ messageId, command, ...extra }));
 }
 
-function schedulePoll(delay = C.pollMs) {
+function nextPollDelay() {
+  return status.charging ? C.chargingPollMs : C.pollMs;
+}
+
+function schedulePoll(delay = nextPollDelay()) {
   if (stopping) return;
   if (pollTimer) clearTimeout(pollTimer);
   pollTimer = setTimeout(() => {
     pollTimer = null;
-    queryBattery();
+    refreshThenQuery();
   }, delay);
   pollTimer.unref?.();
 }
 
-function queryBattery() {
+function clearRefreshTimer() {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  refreshTimer = null;
+}
+
+function clearQueryTimer() {
+  if (queryTimer) clearTimeout(queryTimer);
+  queryTimer = null;
+}
+
+function queryProperties(source = 'cloud-refresh') {
   if (stopping || !listening || !ws || ws.readyState !== 1 || pendingQueryId) {
-    schedulePoll(Math.min(C.pollMs, 30_000));
+    schedulePoll(Math.min(nextPollDelay(), 30_000));
     return;
   }
 
@@ -218,7 +247,7 @@ function queryBattery() {
       status.lastError = 'device.get_properties timeout';
       writeStatus();
       console.warn(`[battery] Eigenschappen opvragen timeout (${status.consecutiveFailures}).`);
-      schedulePoll(Math.min(C.pollMs, 60_000));
+      schedulePoll(Math.min(nextPollDelay(), 60_000));
     }, 15_000);
     queryTimer.unref?.();
   } catch (error) {
@@ -226,7 +255,35 @@ function queryBattery() {
     status.consecutiveFailures++;
     status.lastError = error.message;
     writeStatus();
-    schedulePoll(Math.min(C.pollMs, 60_000));
+    schedulePoll(Math.min(nextPollDelay(), 60_000));
+  }
+}
+
+function refreshThenQuery() {
+  if (stopping || !listening || !ws || ws.readyState !== 1 || pendingRefreshId || pendingQueryId) {
+    schedulePoll(Math.min(nextPollDelay(), 30_000));
+    return;
+  }
+
+  const id = `battery-refresh-${Date.now()}`;
+  pendingRefreshId = id;
+  try {
+    send('driver.poll_refresh', {}, id);
+    refreshTimer = setTimeout(() => {
+      if (pendingRefreshId !== id) return;
+      pendingRefreshId = null;
+      refreshTimer = null;
+      status.lastCloudRefreshError = 'driver.poll_refresh timeout';
+      console.warn('[battery] Cloud refresh timeout; gebruik bestaande Eufy-cache als fallback.');
+      writeStatus();
+      queryProperties('cached-after-refresh-timeout');
+    }, 30_000);
+    refreshTimer.unref?.();
+  } catch (error) {
+    pendingRefreshId = null;
+    status.lastCloudRefreshError = error.message;
+    writeStatus();
+    queryProperties('cached-after-refresh-error');
   }
 }
 
@@ -241,28 +298,45 @@ function handle(data) {
     status.listening = true;
     status.lastError = null;
     writeStatus();
-    console.log('[battery] Eufy-events actief; accupercentage wordt direct opgevraagd.');
-    queryBattery();
+    console.log('[battery] Eufy-events actief; eerst clouddata verversen, daarna accu uitlezen.');
+    refreshThenQuery();
+    return;
+  }
+
+  if (data.type === 'result' && pendingRefreshId && data.messageId === pendingRefreshId) {
+    pendingRefreshId = null;
+    clearRefreshTimer();
+    if (data.success === false) {
+      status.lastCloudRefreshError = data.error || data.errorCode || 'driver.poll_refresh mislukt';
+      console.warn(`[battery] Cloud refresh mislukt: ${status.lastCloudRefreshError}; gebruik Eufy-cache als fallback.`);
+      writeStatus();
+      queryProperties('cached-after-refresh-error');
+      return;
+    }
+
+    status.lastCloudRefreshAt = new Date().toISOString();
+    status.lastCloudRefreshError = null;
+    writeStatus();
+    setTimeout(() => queryProperties('cloud-refresh'), 350).unref?.();
     return;
   }
 
   if (data.type === 'result' && pendingQueryId && data.messageId === pendingQueryId) {
     const id = pendingQueryId;
     pendingQueryId = null;
-    if (queryTimer) clearTimeout(queryTimer);
-    queryTimer = null;
+    clearQueryTimer();
 
     if (data.success === false) {
       status.consecutiveFailures++;
       status.lastError = data.error || data.errorCode || 'device.get_properties mislukt';
       writeStatus();
       console.warn(`[battery] Accu opvragen mislukt (${status.consecutiveFailures}): ${status.lastError}`);
-      schedulePoll(Math.min(C.pollMs, 60_000));
+      schedulePoll(Math.min(nextPollDelay(), 60_000));
       return;
     }
 
     try {
-      applyProperties(data.properties || data.result?.properties || {}, 'device.get_properties');
+      applyProperties(data.properties || data.result?.properties || {}, status.lastCloudRefreshError ? 'cached-properties' : 'cloud-refreshed-properties');
     } catch (error) {
       status.consecutiveFailures++;
       status.lastError = error.message;
@@ -322,8 +396,9 @@ function connect() {
     writeStatus();
     if (pollTimer) clearTimeout(pollTimer);
     pollTimer = null;
-    if (queryTimer) clearTimeout(queryTimer);
-    queryTimer = null;
+    clearRefreshTimer();
+    clearQueryTimer();
+    pendingRefreshId = null;
     pendingQueryId = null;
     ws = null;
     if (!stopping) scheduleReconnect();
@@ -341,7 +416,8 @@ function shutdown() {
   stopping = true;
   if (pollTimer) clearTimeout(pollTimer);
   if (reconnectTimer) clearTimeout(reconnectTimer);
-  if (queryTimer) clearTimeout(queryTimer);
+  clearRefreshTimer();
+  clearQueryTimer();
   status.connected = false;
   status.listening = false;
   writeStatus();
@@ -352,8 +428,9 @@ function shutdown() {
 fs.mkdirSync(C.data, { recursive: true });
 loadHistory();
 writeStatus();
-console.log(`[battery] Smart battery monitor actief · interval ${Math.round(C.pollMs / 60000)} min · waarschuwing <=${C.lowPercent}% · kritiek <=${C.criticalPercent}%.`);
-console.log('[battery] Alleen device-properties worden gelezen; hiervoor wordt GEEN livestream gestart.');
+console.log(`[battery] Smart battery monitor actief · normaal ${Math.round(C.pollMs / 60000)} min · tijdens opladen ${Math.round(C.chargingPollMs / 60000)} min.`);
+console.log(`[battery] Iedere meting ververst eerst Eufy Cloud-data; waarschuwing <=${C.lowPercent}% · kritiek <=${C.criticalPercent}%.`);
+console.log('[battery] Hiervoor wordt GEEN livestream gestart.');
 connect();
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
