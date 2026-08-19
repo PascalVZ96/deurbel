@@ -56,9 +56,50 @@ else
 fi
 
 echo
+printf '%-20s\n' 'Deurbel accu:'
+if [ -r data/battery-status.json ]; then
+  python3 - <<'PY'
+import json,datetime
+try:
+    with open('data/battery-status.json','r',encoding='utf-8') as f:
+        b=json.load(f)
+    pct=b.get('batteryPercent')
+    temp=b.get('batteryTemperature')
+    charging=b.get('chargingStatus')
+    wifi=b.get('wifiSignalLevel')
+    health=b.get('health') or 'unknown'
+    read=b.get('lastReadAt')
+    trend=b.get('trend24h')
+    samples=b.get('samples',0)
+    err=b.get('lastError')
+    connected=b.get('connected')
+    listening=b.get('listening')
+    age='-'
+    if read:
+        dt=datetime.datetime.fromisoformat(read.replace('Z','+00:00'))
+        sec=max(0,int((datetime.datetime.now(datetime.timezone.utc)-dt).total_seconds()))
+        age=f'{sec}s' if sec<60 else (f'{sec//60}m' if sec<3600 else f'{sec//3600}u')
+    print('Accu           :', f'{pct}%' if pct is not None else 'nog niet beschikbaar')
+    print('Accustatus     :', health)
+    print('Temperatuur    :', f'{temp} °C' if temp is not None else '-')
+    print('Laadstatus raw :', charging if charging is not None else '-')
+    print('WiFi niveau    :', wifi if wifi is not None else '-')
+    print('Laatste meting :', f'{read or "-"} ({age} geleden)')
+    print('Trend 24 uur   :', f'{trend:+.1f} procentpunt' if isinstance(trend,(int,float)) else 'nog onvoldoende historie')
+    print('Historie       :', f'{samples} samples')
+    print('Monitor        :', 'verbonden' if connected and listening else 'niet volledig verbonden')
+    print('Accufout       :', err or 'None')
+except Exception as e:
+    print('FOUT - battery-status.json niet leesbaar:', e)
+PY
+else
+  echo 'Nog geen batterijstatus. Wacht na deploy ongeveer 15 seconden.'
+fi
+
+echo
 printf '%-20s\n' 'Nieuwste opnames:'
 ls -lht /mnt/security/deurbel/*.mp4 2>/dev/null | head -5 || echo 'Geen MP4-opnames gevonden.'
 
 echo
 printf '%-20s\n' 'Recente herstel-log:'
-sudo docker logs --since 5m deurbel-viewer 2>&1 | grep -E '\[launcher\]|\[homebase\]|\[storage\]' | tail -30 || true
+sudo docker logs --since 5m deurbel-viewer 2>&1 | grep -E '\[launcher\]|\[homebase\]|\[battery\]|\[storage\]' | tail -40 || true
