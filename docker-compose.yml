@@ -27,6 +27,16 @@ services:
       PROCESS_RESTART_DELAY_SECONDS: ${PROCESS_RESTART_DELAY_SECONDS:-3}
       RECORDINGS_DIR: /recordings
       DATA_DIR: /data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:'+(process.env.WEB_PORT||'8090')+'/api/status').then(r=>{if(!r.ok)throw new Error('http '+r.status);return r.json()}).then(d=>process.exit(d.wsConnected&&d.homebase?.healthy&&d.security?.storage?.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 8s
+      retries: 4
+      start_period: 60s
     volumes:
       - type: bind
         source: /mnt/security/deurbel
