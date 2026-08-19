@@ -15,12 +15,13 @@ model:
   path: /openvino-model/ssdlite_mobilenet_v2.xml
   labelmap_path: /openvino-model/coco_91cl_bkgr.txt
 
-# De Eufy-viewer levert nu MJPEG. Frigate/go2rtc zet dat eenmalig om naar H264,
-# zodat detectie en later 24/7-opname niet elk een aparte cameraverbinding nodig hebben.
+# Frigate draait in een eigen Docker-netwerk. host.docker.internal wijst terug
+# naar de Ubuntu-host waar de bestaande deurbel-viewer op poort 8090 draait.
+# go2rtc zet de MJPEG-feed eenmalig om naar H264 voor Frigate.
 go2rtc:
   streams:
     voordeur:
-      - "ffmpeg:http://127.0.0.1:8090/stream.mjpg#video=h264#hardware"
+      - "ffmpeg:http://host.docker.internal:8090/stream.mjpg#video=h264#hardware"
 
 face_recognition:
   enabled: true
@@ -46,13 +47,13 @@ cameras:
         - person
         - dog
         - cat
-    # Het livebeeld is 640x920: boven 640x480, 80px scheiding, onder 640x360.
-    # In fase 1 analyseert Frigate alleen de hoofdcamera. Zo krijgen we geen
-    # dubbele persoonsdetecties uit beide lenzen. De pakketcamera splitsen we later
-    # als tweede AI-stream zodra de 24/7-keten bewezen stabiel is.
+    # Composite Eufy-beeld: boven 640x480, 80px scheiding, onder 640x360.
+    # Voor fase 1 maskeren we alles vanaf y=480 zodat AI alleen de hoofdcamera
+    # analyseert. Pixelcoordinaten zijn hier bewust integers; dit vermijdt de
+    # Frigate-validatiefout op relatieve 0.000-coordinaten die op deze installatie optrad.
     motion:
       mask:
-        - 0.000,0.522,1.000,0.522,1.000,1.000,0.000,1.000
+        - 0,480,640,480,640,920,0,920
     snapshots:
       enabled: true
     record:
