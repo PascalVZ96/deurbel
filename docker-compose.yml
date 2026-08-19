@@ -17,6 +17,8 @@ services:
       MJPEG_QUALITY: ${MJPEG_QUALITY:-5}
       WATCHDOG_SECONDS: ${WATCHDOG_SECONDS:-8}
       FORCE_STREAMING_QUALITY: ${FORCE_STREAMING_QUALITY:-1}
+      CONTINUOUS_STREAM_ENABLED: ${CONTINUOUS_STREAM_ENABLED:-0}
+      CONTINUOUS_STREAM_CHECK_MS: ${CONTINUOUS_STREAM_CHECK_MS:-5000}
       EVENT_RECORD_SECONDS: ${EVENT_RECORD_SECONDS:-30}
       EVENT_WAKE_TIMEOUT_SECONDS: ${EVENT_WAKE_TIMEOUT_SECONDS:-15}
       MAX_RECORD_SECONDS: ${MAX_RECORD_SECONDS:-120}
@@ -48,3 +50,25 @@ services:
         bind:
           create_host_path: false
       - ./data:/data
+
+  # Frigate is bewust een optioneel profiel. Normaal `docker compose up` start
+  # dus alleen het bewezen deurbel-systeem. Pas wanneer de deurbel permanente
+  # voeding heeft starten we dit profiel met `--profile ai`.
+  frigate:
+    profiles: ["ai"]
+    container_name: frigate
+    image: ghcr.io/blakeblackshear/frigate:stable
+    network_mode: host
+    restart: unless-stopped
+    stop_grace_period: 30s
+    shm_size: "256mb"
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./frigate:/config
+      - type: bind
+        source: /mnt/security/frigate
+        target: /media/frigate
+        bind:
+          create_host_path: false
