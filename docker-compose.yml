@@ -51,17 +51,21 @@ services:
           create_host_path: false
       - ./data:/data
 
-  # Frigate is bewust een optioneel profiel. Normaal `docker compose up` start
-  # dus alleen het bewezen deurbel-systeem. Pas wanneer de deurbel permanente
-  # voeding heeft starten we dit profiel met `--profile ai`.
+  # Frigate blijft een optioneel profiel. De AI-container draait bewust NIET in
+  # host-networking: op de Ubuntu-host zijn 1984/8554/8555 al bezet. In bridge
+  # mode kan Frigate zijn eigen go2rtc-poorten intern gebruiken zonder conflicten.
   frigate:
     profiles: ["ai"]
     container_name: frigate
     image: ghcr.io/blakeblackshear/frigate:stable
-    network_mode: host
     restart: unless-stopped
     stop_grace_period: 30s
     shm_size: "256mb"
+    ports:
+      - "8971:8971"
+      - "127.0.0.1:5000:5000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     devices:
       - /dev/dri/renderD128:/dev/dri/renderD128
     volumes:
