@@ -11,10 +11,14 @@ const C = {
   data: process.env.DATA_DIR || '/data',
   poll: Math.max(5000, Number(process.env.HOMEBASE_POLL_MS || 5000)),
   min: Number(process.env.STORAGE_MIN_BYTES || 2_000_000_000_000),
+  recoverAfter: Math.max(2, Number(process.env.HOMEBASE_RECOVER_AFTER_FAILURES || 3)),
+  reconnectMs: Math.max(1000, Number(process.env.HOMEBASE_RECONNECT_MS || 3000)),
 };
 
 const stateFile = path.join(C.data, 'homebase-poller.json');
 const statusFile = path.join(C.data, 'homebase-status.json');
+const processStartedAt = new Date().toISOString();
+
 let ws = null;
 let query = null;
 let download = null;
@@ -24,7 +28,10 @@ let running = false;
 let stopping = false;
 let listening = false;
 let state = { eventCount: null, cropPath: '', token: '' };
+let lastStatusWrite = 0;
 let status = {
+  phase: 'starting',
+  processStartedAt,
   connected: false,
   listening: false,
   lastCheckAt: null,
@@ -34,8 +41,11 @@ let status = {
   lastError: null,
   eventCount: null,
   token: '',
+  consecutiveFailures: 0,
+  successfulChecks: 0,
+  recoveryCount: 0,
+  lastRecoveryAt: null,
 };
-let lastStatusWrite = 0;
 
 const send = (command, extra = {}, messageId = `${command}-${Date.now()}`) => {
   if (!ws || ws.readyState !== 1) throw new Error('WebSocket niet verbonden');
@@ -88,6 +98,8 @@ function loadStatus() {
     const saved = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
     status.lastImportAt = saved.lastImportAt || null;
     status.lastImportedFile = saved.lastImportedFile || null;
+    status.recoveryCount = Math.max(0, Number(saved.recoveryCount || 0));
+    status.lastRecoveryAt = saved.lastRecoveryAt || null;
   } catch {}
 }
 
@@ -177,16 +189,13 @@ function queryByDate(startDate, endDate) {
 function latestForDoorbell(data) {
   const row = (Array.isArray(data) ? data : []).find(item => item?.device_sn === C.dev);
   if (!row) return null;
-
   const cropPath = String(row.crop_local_path || '');
   const match = /\/([0-9]{14})\/snapshort[.]jpg$/i.exec(cropPath);
   if (!match) throw new Error(`onbekend HomeBase-pad: ${cropPath || '(leeg)'}`);
-
   const token = match[1];
   const storagePath = `${path.posix.dirname(cropPath)}/${token}.zxvideo`;
   const eventCount = Number(row.event_count);
   if (!Number.isFinite(eventCount)) throw new Error('HomeBase event_count ontbreekt');
-
   return { eventCount, cropPath, token, storagePath, cipherId:0, recordId:null };
 }
 
@@ -229,7 +238,6 @@ function downloadRecord(record, videoFile, audioFile) {
   const video = fs.createWriteStream(videoFile);
   const audio = fs.createWriteStream(audioFile);
   const id = `hbd-${Date.now()}`;
-
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       if (download?.id === id) download = null;
@@ -237,12 +245,7 @@ function downloadRecord(record, videoFile, audioFile) {
       audio.destroy();
       reject(new Error('download timeout'));
     }, 120000);
-
-    download = {
-      id, video, audio, timeout, resolve, reject,
-      vc: 0, ac: 0, vb: 0, ab: 0, vm: null, am: null,
-    };
-
+    download = { id, video, audio, timeout, resolve, reject, vc:0, ac:0, vb:0, ab:0, vm:null, am:null };
     try {
       send('device.start_download', {
         serialNumber: C.dev,
@@ -260,48 +263,42 @@ function downloadRecord(record, videoFile, audioFile) {
 }
 
 function ff(args) {
-  const result = spawnSync('ffmpeg', args, { encoding: 'utf8' });
+  const result = spawnSync('ffmpeg', args, { encoding:'utf8' });
   if (result.status !== 0) throw new Error((result.stderr || 'ffmpeg mislukt').trim());
 }
 
 function convert(data, videoFile, audioFile, output, thumb) {
   const format = /265|HEVC/i.test(String(data.vm?.videoCodec || '')) ? 'hevc' : 'h264';
   const fps = Math.max(1, Number(data.vm?.videoFPS || 15));
-  const input = ['-hide_banner', '-loglevel', 'warning', '-fflags', '+genpts', '-r', String(fps), '-f', format, '-i', videoFile];
-  const encode = ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-pix_fmt', 'yuv420p'];
+  const input = ['-hide_banner','-loglevel','warning','-fflags','+genpts','-r',String(fps),'-f',format,'-i',videoFile];
+  const encode = ['-c:v','libx264','-preset','veryfast','-crf','23','-pix_fmt','yuv420p'];
   let withAudio = false;
-
   if (data.ac > 0 && /AAC/i.test(String(data.am?.audioCodec || ''))) {
     try {
-      ff([...input, '-f', 'aac', '-i', audioFile, ...encode, '-c:a', 'aac', '-b:a', '96k', '-shortest', '-movflags', '+faststart', '-y', output]);
+      ff([...input,'-f','aac','-i',audioFile,...encode,'-c:a','aac','-b:a','96k','-shortest','-movflags','+faststart','-y',output]);
       withAudio = true;
     } catch (error) {
       console.warn(`[homebase] Audio mislukt; probeer zonder audio: ${error.message}`);
     }
   }
-
-  if (!withAudio) ff([...input, '-an', ...encode, '-movflags', '+faststart', '-y', output]);
-  ff(['-hide_banner', '-loglevel', 'error', '-ss', '1', '-i', output, '-frames:v', '1', '-q:v', '3', '-y', thumb]);
+  if (!withAudio) ff([...input,'-an',...encode,'-movflags','+faststart','-y',output]);
+  ff(['-hide_banner','-loglevel','error','-ss','1','-i',output,'-frames:v','1','-q:v','3','-y',thumb]);
 }
 
 async function importRecord(record) {
   if (!diskOk()) throw new Error('/recordings staat niet op de grote HDD');
-
   const base = `motion_${stamp(record.token)}_eufy-original`;
   const output = path.join(C.rec, `${base}.mp4`);
   const thumb = path.join(C.rec, `${base}.jpg`);
   const videoFile = path.join(C.rec, `.${base}.video`);
   const audioFile = path.join(C.rec, `.${base}.audio`);
-
   if (fs.existsSync(output) && fs.statSync(output).size > 0) {
     console.log(`[homebase] Bestaat al: ${path.basename(output)}`);
     return path.basename(output);
   }
-
-  for (const file of [output, thumb, videoFile, audioFile]) {
+  for (const file of [output,thumb,videoFile,audioFile]) {
     try { fs.unlinkSync(file); } catch {}
   }
-
   try {
     const idText = record.recordId != null ? `record_id=${record.recordId}` : `event_count=${record.eventCount ?? '?'}`;
     console.log(`[homebase] Nieuwe HomeBase-opname: ${idText} (${record.token}); livestream blijft uit.`);
@@ -317,7 +314,7 @@ async function importRecord(record) {
     console.log(`[homebase] Opgeslagen: ${file} (${Math.round(fs.statSync(output).size / 1024)} KB).`);
     return file;
   } finally {
-    for (const file of [videoFile, audioFile]) {
+    for (const file of [videoFile,audioFile]) {
       try { fs.unlinkSync(file); } catch {}
     }
   }
@@ -325,14 +322,12 @@ async function importRecord(record) {
 
 async function importChanged(latest, delta) {
   let lastImportedFile = null;
-
   if (delta > 1) {
     const startDate = /^[0-9]{14}$/.test(state.token) ? state.token.slice(0,8) : latest.token.slice(0,8);
     const endDate = nextDay(latest.token.slice(0,8));
     console.warn(`[homebase] event_count sprong met ${delta}; backfill ${startDate} -> ${endDate} wordt geprobeerd.`);
-
     try {
-      const records = recordsFromDatabase(await queryByDate(startDate, endDate), state.token, latest.token);
+      const records = recordsFromDatabase(await queryByDate(startDate,endDate), state.token, latest.token);
       if (records.length) {
         console.log(`[homebase] Backfill vond ${records.length} gemiste/nieuwe opname(s).`);
         for (const record of records) lastImportedFile = await importRecord(record);
@@ -343,63 +338,99 @@ async function importChanged(latest, delta) {
       console.warn(`[homebase] Backfill-query mislukt: ${error.message}; nieuwste opname wordt veiliggesteld.`);
     }
   }
-
   const latestAlreadyHandled = fs.existsSync(path.join(C.rec, `motion_${stamp(latest.token)}_eufy-original.mp4`));
   if (!latestAlreadyHandled) lastImportedFile = await importRecord(latest);
   else if (!lastImportedFile) lastImportedFile = `motion_${stamp(latest.token)}_eufy-original.mp4`;
-
   return lastImportedFile;
+}
+
+function stopActive(reason) {
+  if (query) {
+    const current = query;
+    query = null;
+    clearTimeout(current.timeout);
+    current.reject(new Error(reason));
+  }
+  if (download) {
+    const current = download;
+    download = null;
+    clearTimeout(current.timeout);
+    current.video.destroy();
+    current.audio.destroy();
+    current.reject(new Error(reason));
+  }
+}
+
+function scheduleReconnect(delay = C.reconnectMs) {
+  if (stopping || reconnectTimer) return;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connect();
+  }, delay);
+}
+
+function forceRecovery(reason) {
+  if (stopping) return;
+  status.phase = 'recovering';
+  status.recoveryCount++;
+  status.lastRecoveryAt = new Date().toISOString();
+  status.lastError = reason;
+  status.consecutiveFailures = 0;
+  writeStatus(true);
+  console.warn(`[homebase] Self-healing: ${reason}; WebSocket wordt opnieuw opgebouwd.`);
+  stopActive(reason);
+  if (pollTimer) clearTimeout(pollTimer);
+  pollTimer = null;
+  try { ws?.close(); } catch {}
+  if (!ws || ws.readyState === 3) scheduleReconnect(250);
 }
 
 async function poll() {
   if (running || stopping || !listening || !ws || ws.readyState !== 1) return;
   running = true;
   status.lastCheckAt = new Date().toISOString();
-
   try {
     const latest = latestForDoorbell(await queryLatest());
+    if (!latest) throw new Error('Deurbel ontbreekt in database query latest');
+
+    const firstHealthyCheck = !status.lastSuccessAt;
     status.lastSuccessAt = new Date().toISOString();
     status.lastError = null;
-    writeStatus();
-
-    if (!latest) {
-      status.lastError = 'Deurbel ontbreekt in database query latest';
-      writeStatus(true);
-      console.warn('[homebase] Deurbel ontbreekt in database query latest.');
-      return;
-    }
+    status.phase = 'healthy';
+    status.consecutiveFailures = 0;
+    status.successfulChecks++;
+    writeStatus(firstHealthyCheck);
 
     if (state.eventCount === null) {
       saveState(latest);
       console.log(`[homebase] Startpositie: event_count=${latest.eventCount} (${latest.token}).`);
       return;
     }
-
     if (latest.eventCount < state.eventCount) {
       saveState(latest);
       console.warn(`[homebase] event_count is teruggelopen; nieuwe startpositie ${latest.eventCount} (${latest.token}).`);
       return;
     }
-
     const changed = latest.eventCount > state.eventCount || latest.cropPath !== state.cropPath;
     if (!changed) return;
-
     const delta = latest.eventCount - state.eventCount;
     if (!await securityOn()) {
       saveState(latest);
       console.log(`[homebase] Beveiliging uit; positie bijgewerkt naar event_count=${latest.eventCount} zonder import.`);
       return;
     }
-
     const importedFile = await importChanged(latest, delta);
     status.lastImportAt = new Date().toISOString();
     status.lastImportedFile = importedFile;
     saveState(latest);
     writeStatus(true);
   } catch (error) {
+    status.consecutiveFailures++;
     status.lastError = error.message;
+    status.phase = status.connected ? 'degraded' : 'waiting';
     writeStatus(true);
-    console.warn(`[homebase] Controle mislukt: ${error.message}`);
+    console.warn(`[homebase] Controle mislukt (${status.consecutiveFailures}/${C.recoverAfter}): ${error.message}`);
+    if (status.consecutiveFailures >= C.recoverAfter) forceRecovery(`${status.consecutiveFailures} opeenvolgende HomeBase-fouten`);
   } finally {
     running = false;
   }
@@ -411,7 +442,7 @@ async function finishDownload() {
   download = null;
   clearTimeout(current.timeout);
   try {
-    await Promise.all([finishStream(current.video), finishStream(current.audio)]);
+    await Promise.all([finishStream(current.video),finishStream(current.audio)]);
     current.resolve(current);
   } catch (error) {
     current.reject(error);
@@ -421,16 +452,19 @@ async function finishDownload() {
 function handle(data) {
   if (data.type === 'result' && data.messageId === 'hb-listen') {
     if (data.success === false) {
+      status.phase = 'degraded';
       status.lastError = data.error || data.errorCode || 'start_listening mislukt';
       writeStatus(true);
       console.warn(`[homebase] start_listening mislukt: ${status.lastError}`);
+      forceRecovery('start_listening mislukt');
     } else if (!listening) {
       listening = true;
       status.listening = true;
+      status.phase = 'checking';
       status.lastError = null;
       writeStatus(true);
-      console.log('[homebase] Luisteren actief; latest-info polling gestart.');
-      schedule(1000);
+      console.log('[homebase] Luisteren actief; eerste HomeBase-check wordt direct uitgevoerd.');
+      schedule(250);
     }
   }
 
@@ -456,7 +490,6 @@ function handle(data) {
   }
 
   if (!download) return;
-
   if (data.type === 'result' && data.messageId === download.id && data.success === false) {
     const current = download;
     download = null;
@@ -466,10 +499,8 @@ function handle(data) {
     current.reject(new Error(data.error || data.errorCode || 'download geweigerd'));
     return;
   }
-
   const event = data.event;
   if (data.type !== 'event' || event?.source !== 'device' || event.serialNumber !== C.dev || !download) return;
-
   if (event.event === 'download started') console.log('[homebase] HomeBase-download gestart.');
   if (event.event === 'download video data') {
     const buffer = toBuf(event.buffer);
@@ -492,82 +523,75 @@ function handle(data) {
   if (event.event === 'download finished') void finishDownload();
 }
 
-function stopActive(reason) {
-  if (query) {
-    const current = query;
-    query = null;
-    clearTimeout(current.timeout);
-    current.reject(new Error(reason));
-  }
-  if (download) {
-    const current = download;
-    download = null;
-    clearTimeout(current.timeout);
-    current.video.destroy();
-    current.audio.destroy();
-    current.reject(new Error(reason));
-  }
-}
-
 function schedule(delay = C.poll) {
   if (stopping) return;
   if (pollTimer) clearTimeout(pollTimer);
   pollTimer = setTimeout(async () => {
     pollTimer = null;
     await poll();
-    schedule();
+    if (!stopping && listening) schedule();
   }, delay);
 }
 
 function connect() {
+  if (stopping || (ws && (ws.readyState === 0 || ws.readyState === 1))) return;
   if (!C.dev || !C.hb) {
+    status.phase = 'error';
     status.lastError = 'EUFY_SERIAL of EUFY_STATION_SERIAL ontbreekt';
     writeStatus(true);
     console.error('[homebase] EUFY_SERIAL of EUFY_STATION_SERIAL ontbreekt.');
     return;
   }
 
+  status.phase = 'connecting';
+  status.connected = false;
+  status.listening = false;
+  writeStatus(true);
+  console.log(`[homebase] Verbinden met ${C.ws} ...`);
+
   ws = new WebSocket(C.ws);
   ws.addEventListener('open', () => {
     listening = false;
     status.connected = true;
     status.listening = false;
+    status.phase = 'starting';
     status.lastError = null;
     writeStatus(true);
     console.log(`[homebase] Verbonden. Deurbel ${C.dev} via HomeBase ${C.hb}.`);
-    send('set_api_schema', { schemaVersion: 21 }, 'hb-schema');
+    send('set_api_schema', { schemaVersion:21 }, 'hb-schema');
     send('start_listening', {}, 'hb-listen');
   });
   ws.addEventListener('message', message => {
-    try {
-      handle(JSON.parse(typeof message.data === 'string' ? message.data : message.data.toString()));
-    } catch {}
+    try { handle(JSON.parse(typeof message.data === 'string' ? message.data : message.data.toString())); } catch {}
   });
   ws.addEventListener('close', () => {
     listening = false;
     status.connected = false;
     status.listening = false;
-    status.lastError = 'WebSocket verbroken';
+    if (status.phase !== 'recovering') status.phase = 'waiting';
+    if (!status.lastError) status.lastError = 'WebSocket verbroken';
     writeStatus(true);
     stopActive('WebSocket verbroken');
     if (pollTimer) clearTimeout(pollTimer);
     pollTimer = null;
     ws = null;
     if (stopping) return;
-    console.warn('[homebase] WebSocket verbroken; over 3s opnieuw.');
-    reconnectTimer = setTimeout(connect, 3000);
+    console.warn(`[homebase] WebSocket niet beschikbaar; over ${Math.round(C.reconnectMs/1000)}s opnieuw.`);
+    scheduleReconnect();
   });
   ws.addEventListener('error', () => {
     if (!stopping) {
       status.lastError = 'WebSocket-fout';
+      if (status.phase !== 'recovering') status.phase = 'waiting';
       writeStatus(true);
-      console.warn('[homebase] WebSocket-fout.');
+      console.warn('[homebase] WebSocket-fout; automatische reconnect blijft actief.');
     }
   });
 }
 
 function shutdown() {
   stopping = true;
+  status.phase = 'stopping';
   status.connected = false;
   status.listening = false;
   writeStatus(true);
@@ -578,12 +602,13 @@ function shutdown() {
   process.exit(0);
 }
 
-fs.mkdirSync(C.data, { recursive: true });
+fs.mkdirSync(C.data, { recursive:true });
 loadState();
 loadStatus();
 writeStatus(true);
-console.log('[homebase] HomeBase latest-info is de bron; zware dagquery draait alleen als backfill nodig is.');
-console.log(`[homebase] Controle elke ${Math.round(C.poll / 1000)}s; automatische route start GEEN livestream.`);
+console.log('[homebase] Smart recovery actief: eerste check direct, automatische reconnect en backfill bij gemiste events.');
+console.log(`[homebase] Controle elke ${Math.round(C.poll/1000)}s; na ${C.recoverAfter} fouten wordt de HomeBase-verbinding zelf hersteld.`);
+console.log('[homebase] Automatische route start GEEN livestream.');
 connect();
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
