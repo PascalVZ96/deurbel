@@ -4,6 +4,8 @@ services:
     container_name: deurbel-viewer
     network_mode: host
     restart: unless-stopped
+    init: true
+    stop_grace_period: 20s
     environment:
       TZ: Europe/Amsterdam
       EUFY_SERIAL: ${EUFY_SERIAL}
@@ -19,6 +21,10 @@ services:
       EVENT_WAKE_TIMEOUT_SECONDS: ${EVENT_WAKE_TIMEOUT_SECONDS:-15}
       MAX_RECORD_SECONDS: ${MAX_RECORD_SECONDS:-120}
       RETENTION_DAYS: ${RETENTION_DAYS:-14}
+      HOMEBASE_POLL_MS: ${HOMEBASE_POLL_MS:-5000}
+      HOMEBASE_RECOVER_AFTER_FAILURES: ${HOMEBASE_RECOVER_AFTER_FAILURES:-3}
+      HOMEBASE_RECONNECT_MS: ${HOMEBASE_RECONNECT_MS:-3000}
+      PROCESS_RESTART_DELAY_SECONDS: ${PROCESS_RESTART_DELAY_SECONDS:-3}
       RECORDINGS_DIR: /recordings
       DATA_DIR: /data
     volumes:
