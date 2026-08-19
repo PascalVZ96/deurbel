@@ -34,18 +34,19 @@ wait_for_dashboard() {
   attempt=0
   while [ "$attempt" -lt 30 ]; do
     if node -e "fetch('http://127.0.0.1:${WEB_PORT}/api/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" >/dev/null 2>&1; then
-      echo "[launcher] Dashboard/API is gereed; HomeBase-poller mag starten."
+      echo "[launcher] Dashboard/API is gereed; HomeBase-poller en batterijmonitor mogen starten."
       return 0
     fi
     attempt=$((attempt + 1))
     sleep 1
   done
-  echo "[launcher] Dashboard/API na 30s nog niet gereed; HomeBase-poller start toch en herstelt zelf."
+  echo "[launcher] Dashboard/API na 30s nog niet gereed; monitors starten toch en herstellen zelf."
   return 0
 }
 
 cleanup() {
   echo "[launcher] Container stopt; processen netjes afsluiten."
+  [ -n "${BATTERY_SUP_PID:-}" ] && kill "$BATTERY_SUP_PID" 2>/dev/null || true
   [ -n "${HOMEBASE_SUP_PID:-}" ] && kill "$HOMEBASE_SUP_PID" 2>/dev/null || true
   [ -n "${SECURITY_SUP_PID:-}" ] && kill "$SECURITY_SUP_PID" 2>/dev/null || true
   [ -n "${SUPERVISOR_SUP_PID:-}" ] && kill "$SUPERVISOR_SUP_PID" 2>/dev/null || true
@@ -67,13 +68,18 @@ SECURITY_SUP_PID=$!
 
 # Bij een server-/containerstart wachten we eerst tot de lokale dashboard/API-service
 # antwoordt. Hierdoor probeert de HomeBase-poller niet te vroeg de beveiligingsstatus
-# op te vragen. Na 30 seconden start hij alsnog; zijn eigen reconnect blijft de fallback.
+# op te vragen. Na 30 seconden starten de monitors alsnog; eigen reconnect blijft fallback.
 wait_for_dashboard
 
 supervise "homebase-poller" env SECURITY_STATUS_URL="http://127.0.0.1:${WEB_PORT}/api/status" node src/homebase-poller.mjs &
 HOMEBASE_SUP_PID=$!
 
-echo "[launcher] Self-healing actief voor viewer, stream-supervisor, security-monitor en HomeBase-poller."
+# De batterijmonitor leest alleen Eufy device-properties. Hij start geen livestream,
+# houdt 30 dagen lokale geschiedenis bij en wordt zelfstandig opnieuw gestart.
+supervise "battery-monitor" node src/battery-monitor.mjs &
+BATTERY_SUP_PID=$!
+
+echo "[launcher] Self-healing actief voor viewer, stream-supervisor, security-monitor, HomeBase-poller en batterijmonitor."
 
 # De security-monitor is de publieke dashboard/API-service. Als zijn supervisor
 # ooit onverwacht volledig stopt, laat Docker de container opnieuw starten.
