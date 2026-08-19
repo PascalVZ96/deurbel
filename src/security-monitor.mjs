@@ -23,6 +23,7 @@ const VIEWER = `http://127.0.0.1:${config.viewerPort}`;
 const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'security.html'));
 const settingsFile = path.join(config.dataDir, 'security.json');
 const homebaseStatusFile = path.join(config.dataDir, 'homebase-status.json');
+const batteryStatusFile = path.join(config.dataDir, 'battery-status.json');
 const serverStartedAt = new Date().toISOString();
 fs.mkdirSync(config.recordingsDir, { recursive:true });
 fs.mkdirSync(config.dataDir, { recursive:true });
@@ -30,7 +31,6 @@ fs.mkdirSync(config.dataDir, { recursive:true });
 function loadSettings() {
   try { return JSON.parse(fs.readFileSync(settingsFile, 'utf8')); } catch { return {}; }
 }
-
 function normalizeRetentionDays(value, fallback = config.defaultRetentionDays) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
@@ -79,7 +79,6 @@ async function viewerJson(route, options = {}) {
   if (!response.ok) throw new Error(data.error || `Viewer HTTP ${response.status}`);
   return data;
 }
-
 async function viewerStatus() {
   try { return await viewerJson('/api/status'); }
   catch (error) {
@@ -96,55 +95,69 @@ function recordingSource(name) {
 
 function getHomebaseStatus() {
   try {
-    const savedStatus = JSON.parse(fs.readFileSync(homebaseStatusFile, 'utf8'));
-    const lastSuccessMs = savedStatus.lastSuccessAt ? new Date(savedStatus.lastSuccessAt).getTime() : 0;
+    const s = JSON.parse(fs.readFileSync(homebaseStatusFile, 'utf8'));
+    const lastSuccessMs = s.lastSuccessAt ? new Date(s.lastSuccessAt).getTime() : 0;
     const ageSeconds = lastSuccessMs > 0 ? Math.max(0, Math.round((Date.now() - lastSuccessMs) / 1000)) : null;
-    const phase = String(savedStatus.phase || (savedStatus.connected ? 'checking' : 'waiting'));
+    const phase = String(s.phase || (s.connected ? 'checking' : 'waiting'));
     const recent = lastSuccessMs > 0 && Date.now() - lastSuccessMs < 120000;
-    const healthy = Boolean(savedStatus.connected && savedStatus.listening && recent && phase === 'healthy' && !savedStatus.lastError);
+    const healthy = Boolean(s.connected && s.listening && recent && phase === 'healthy' && !s.lastError);
     const recovering = ['connecting','starting','checking','recovering','waiting'].includes(phase) && !healthy;
     return {
-      available:true,
-      healthy,
-      recovering,
-      phase,
-      ageSeconds,
-      processStartedAt:savedStatus.processStartedAt || null,
-      connected:Boolean(savedStatus.connected),
-      listening:Boolean(savedStatus.listening),
-      lastCheckAt:savedStatus.lastCheckAt || null,
-      lastSuccessAt:savedStatus.lastSuccessAt || null,
-      lastImportAt:savedStatus.lastImportAt || null,
-      lastImportedFile:savedStatus.lastImportedFile || null,
-      lastError:savedStatus.lastError || null,
-      eventCount:Number.isFinite(Number(savedStatus.eventCount)) ? Number(savedStatus.eventCount) : null,
-      token:savedStatus.token || '',
-      consecutiveFailures:Math.max(0, Number(savedStatus.consecutiveFailures || 0)),
-      successfulChecks:Math.max(0, Number(savedStatus.successfulChecks || 0)),
-      recoveryCount:Math.max(0, Number(savedStatus.recoveryCount || 0)),
-      lastRecoveryAt:savedStatus.lastRecoveryAt || null,
+      available:true, healthy, recovering, phase, ageSeconds,
+      processStartedAt:s.processStartedAt || null,
+      connected:Boolean(s.connected), listening:Boolean(s.listening),
+      lastCheckAt:s.lastCheckAt || null, lastSuccessAt:s.lastSuccessAt || null,
+      lastImportAt:s.lastImportAt || null, lastImportedFile:s.lastImportedFile || null,
+      lastError:s.lastError || null,
+      eventCount:Number.isFinite(Number(s.eventCount)) ? Number(s.eventCount) : null,
+      token:s.token || '',
+      consecutiveFailures:Math.max(0, Number(s.consecutiveFailures || 0)),
+      successfulChecks:Math.max(0, Number(s.successfulChecks || 0)),
+      recoveryCount:Math.max(0, Number(s.recoveryCount || 0)),
+      lastRecoveryAt:s.lastRecoveryAt || null,
     };
   } catch (error) {
     return {
-      available:false,
-      healthy:false,
-      recovering:true,
-      phase:'starting',
-      ageSeconds:null,
-      processStartedAt:null,
-      connected:false,
-      listening:false,
-      lastCheckAt:null,
-      lastSuccessAt:null,
-      lastImportAt:null,
-      lastImportedFile:null,
+      available:false, healthy:false, recovering:true, phase:'starting', ageSeconds:null,
+      processStartedAt:null, connected:false, listening:false, lastCheckAt:null, lastSuccessAt:null,
+      lastImportAt:null, lastImportedFile:null,
       lastError:error.code === 'ENOENT' ? 'HomeBase-monitor nog niet gestart' : error.message,
-      eventCount:null,
-      token:'',
+      eventCount:null, token:'', consecutiveFailures:0, successfulChecks:0, recoveryCount:0, lastRecoveryAt:null,
+    };
+  }
+}
+
+function getBatteryStatus() {
+  try {
+    const s = JSON.parse(fs.readFileSync(batteryStatusFile, 'utf8'));
+    const lastReadMs = s.lastReadAt ? new Date(s.lastReadAt).getTime() : 0;
+    const ageSeconds = lastReadMs > 0 ? Math.max(0, Math.round((Date.now() - lastReadMs) / 1000)) : null;
+    const percent = Number(s.batteryPercent);
+    return {
+      available:Boolean(s.available && Number.isFinite(percent)),
+      batteryPercent:Number.isFinite(percent) ? percent : null,
+      batteryTemperature:Number.isFinite(Number(s.batteryTemperature)) ? Number(s.batteryTemperature) : null,
+      chargingStatus:s.chargingStatus ?? null,
+      wifiSignalLevel:Number.isFinite(Number(s.wifiSignalLevel)) ? Number(s.wifiSignalLevel) : null,
+      health:String(s.health || 'unknown'),
+      trend24h:Number.isFinite(Number(s.trend24h)) ? Number(s.trend24h) : null,
+      samples:Math.max(0, Number(s.samples || 0)),
+      connected:Boolean(s.connected),
+      listening:Boolean(s.listening),
+      lastReadAt:s.lastReadAt || null,
+      lastChangedAt:s.lastChangedAt || null,
+      ageSeconds,
+      source:s.source || null,
+      consecutiveFailures:Math.max(0, Number(s.consecutiveFailures || 0)),
+      lastError:s.lastError || null,
+    };
+  } catch (error) {
+    return {
+      available:false, batteryPercent:null, batteryTemperature:null, chargingStatus:null,
+      wifiSignalLevel:null, health:'unknown', trend24h:null, samples:0, connected:false,
+      listening:false, lastReadAt:null, lastChangedAt:null, ageSeconds:null, source:null,
       consecutiveFailures:0,
-      successfulChecks:0,
-      recoveryCount:0,
-      lastRecoveryAt:null,
+      lastError:error.code === 'ENOENT' ? 'Batterijmonitor nog niet gestart' : error.message,
     };
   }
 }
@@ -162,11 +175,8 @@ function listRecordings() {
         let thumbnailSize = 0;
         try { thumbnailSize = fs.statSync(jpgPath).size; } catch {}
         return {
-          name,
-          ...recordingSource(name),
-          createdAt:stat.mtime.toISOString(),
-          size:stat.size,
-          totalSize:stat.size + thumbnailSize,
+          name, ...recordingSource(name), createdAt:stat.mtime.toISOString(),
+          size:stat.size, totalSize:stat.size + thumbnailSize,
           videoUrl:`/recordings/${encodeURIComponent(name)}`,
           thumbnailUrl:fs.existsSync(jpgPath) ? `/recordings/${encodeURIComponent(jpg)}` : null,
         };
@@ -174,13 +184,11 @@ function listRecordings() {
       .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
   } catch { return []; }
 }
-
 function refreshStorage() {
   const list = listRecordings();
   state.recordingsCount = list.length;
   state.storageBytes = list.reduce((sum,item) => sum + (item.totalSize || item.size || 0), 0);
 }
-
 function getStorageInfo() {
   try {
     fs.accessSync(config.recordingsDir, fs.constants.R_OK | fs.constants.W_OK);
@@ -194,37 +202,19 @@ function getStorageInfo() {
     const usedPercent = totalBytes > 0 ? Math.round((usedBytes / totalBytes) * 1000) / 10 : 0;
     const expectedDisk = totalBytes >= config.storageMinBytes;
     return {
-      available:true,
-      ok:expectedDisk,
-      label:config.storageLabel,
-      path:config.recordingsDir,
-      totalBytes,
-      freeBytes,
-      filesystemFreeBytes,
-      reservedBytes,
-      usedBytes,
-      usedPercent,
+      available:true, ok:expectedDisk, label:config.storageLabel, path:config.recordingsDir,
+      totalBytes, freeBytes, filesystemFreeBytes, reservedBytes, usedBytes, usedPercent,
       recordingsBytes:state.storageBytes,
       error:expectedDisk ? null : 'Opnameschijf lijkt niet de verwachte HDD te zijn',
     };
   } catch (error) {
     return {
-      available:false,
-      ok:false,
-      label:config.storageLabel,
-      path:config.recordingsDir,
-      totalBytes:0,
-      freeBytes:0,
-      filesystemFreeBytes:0,
-      reservedBytes:0,
-      usedBytes:0,
-      usedPercent:0,
-      recordingsBytes:state.storageBytes,
-      error:error.message,
+      available:false, ok:false, label:config.storageLabel, path:config.recordingsDir,
+      totalBytes:0, freeBytes:0, filesystemFreeBytes:0, reservedBytes:0, usedBytes:0,
+      usedPercent:0, recordingsBytes:state.storageBytes, error:error.message,
     };
   }
 }
-
 function cleanupOld() {
   if (state.retentionDays <= 0) return;
   const cutoff = Date.now() - state.retentionDays * 86400000;
@@ -243,11 +233,9 @@ function timestamp() {
   const p = n => String(n).padStart(2,'0');
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
 }
-
 function safeSource(source) {
   return String(source || 'sensor').toLowerCase().replace(/[^a-z0-9_-]+/g,'-').slice(0,24) || 'sensor';
 }
-
 function startRecording(snapshot, source) {
   if (recorder || !snapshot) return;
   const storage = getStorageInfo();
@@ -279,12 +267,10 @@ function startRecording(snapshot, source) {
     refreshStorage();
   });
 }
-
 function writeRecording(jpeg) {
   if (!recorder?.stdin || recorder.stdin.destroyed || recorder.stdin.writableNeedDrain) return;
   try { recorder.stdin.write(jpeg); } catch {}
 }
-
 function finishRecording() {
   if (!recorder) return;
   const current = recorder;
@@ -316,7 +302,6 @@ function parseMjpegChunk(parser, chunk, onFrame) {
     onFrame(jpeg);
   }
 }
-
 async function waitForHealthy(timeoutSeconds = config.wakeTimeoutSeconds) {
   const deadline = Date.now() + Math.max(3, timeoutSeconds) * 1000;
   while (Date.now() < deadline) {
@@ -326,12 +311,12 @@ async function waitForHealthy(timeoutSeconds = config.wakeTimeoutSeconds) {
   }
   return false;
 }
-
 async function startFreshViewer(onOwnsViewer = null) {
   let status = await viewerStatus();
   if (!status.wsConnected || !status.listening) throw new Error('eufy-security-ws is niet gereed');
   let ownsViewer = !status.active;
   if (ownsViewer) onOwnsViewer?.();
+
   if (status.active && !status.streamHealthy) {
     console.warn('[security] Bestaande stream is ongezond; eerst volledig stoppen.');
     try { await viewerJson('/api/stop', { method:'POST' }); } catch {}
@@ -346,6 +331,7 @@ async function startFreshViewer(onOwnsViewer = null) {
     await viewerJson('/api/start', { method:'POST' });
   }
   if (await waitForHealthy()) return ownsViewer;
+
   console.warn('[security] Geen beeld na eerste start; geforceerde tweede poging.');
   try { await viewerJson('/api/stop', { method:'POST' }); } catch {}
   await sleep(1500);
@@ -355,7 +341,6 @@ async function startFreshViewer(onOwnsViewer = null) {
   if (!await waitForHealthy()) throw new Error('Deurbel werd niet wakker: geen decodeerbare liveframes');
   return ownsViewer;
 }
-
 function scheduleEventStop() {
   if (eventStopTimer) clearTimeout(eventStopTimer);
   if (!eventAbort) return;
@@ -366,7 +351,6 @@ function scheduleEventStop() {
   }, delay);
   eventStopTimer.unref?.();
 }
-
 async function runTriggeredEvent(source) {
   state.eventActive = true;
   state.eventStarting = true;
@@ -375,7 +359,9 @@ async function runTriggeredEvent(source) {
   try {
     eventOwnsViewer = await startFreshViewer(() => { eventOwnsViewer = true; });
     eventAbort = new AbortController();
-    const response = await fetch(VIEWER + '/stream.mjpg?security-event=1&t=' + Date.now(), { signal:eventAbort.signal, cache:'no-store' });
+    const response = await fetch(VIEWER + '/stream.mjpg?security-event=1&t=' + Date.now(), {
+      signal:eventAbort.signal, cache:'no-store',
+    });
     if (!response.ok || !response.body) throw new Error(`MJPEG HTTP ${response.status}`);
     state.monitorConnected = true;
     state.eventStarting = false;
@@ -420,7 +406,6 @@ async function runTriggeredEvent(source) {
     refreshStorage();
   }
 }
-
 function triggerEvent(source = 'sensor') {
   if (!state.securityEnabled) throw new Error('Beveiliging staat uit');
   const storage = getStorageInfo();
@@ -441,7 +426,6 @@ function triggerEvent(source = 'sensor') {
   eventPromise = runTriggeredEvent(source);
   return { started:true, extended:false };
 }
-
 async function setSecurity(enabled) {
   state.securityEnabled = Boolean(enabled);
   saveSettings();
@@ -458,7 +442,6 @@ async function setSecurity(enabled) {
     console.log('[security] Beveiliging uitgeschakeld.');
   }
 }
-
 function setRetentionDays(days) {
   const value = normalizeRetentionDays(days, -1);
   if (value < 0) throw new Error('Ongeldige bewaartermijn');
@@ -477,31 +460,24 @@ function serveFile(req, res, filePath, type) {
     const start = match?.[1] ? Number(match[1]) : 0;
     const end = match?.[2] ? Math.min(Number(match[2]), stat.size - 1) : stat.size - 1;
     res.writeHead(206, {
-      'Content-Type':type,
-      'Content-Length':end-start+1,
-      'Content-Range':`bytes ${start}-${end}/${stat.size}`,
-      'Accept-Ranges':'bytes',
+      'Content-Type':type, 'Content-Length':end-start+1,
+      'Content-Range':`bytes ${start}-${end}/${stat.size}`, 'Accept-Ranges':'bytes',
     });
     fs.createReadStream(filePath,{ start,end }).pipe(res);
     return;
   }
   res.writeHead(200, {
-    'Content-Type':type,
-    'Content-Length':stat.size,
-    'Accept-Ranges':'bytes',
-    'Cache-Control':'no-store',
+    'Content-Type':type, 'Content-Length':stat.size, 'Accept-Ranges':'bytes', 'Cache-Control':'no-store',
   });
   fs.createReadStream(filePath).pipe(res);
 }
-
 async function proxyStream(req, res) {
   try {
     const response = await fetch(VIEWER + '/stream.mjpg?browser=1&t=' + Date.now(), { cache:'no-store' });
     res.writeHead(response.status, {
       'Content-Type':response.headers.get('content-type') || 'multipart/x-mixed-replace; boundary=frame',
       'Cache-Control':'no-store, no-cache, must-revalidate',
-      'Connection':'keep-alive',
-      'X-Accel-Buffering':'no',
+      'Connection':'keep-alive', 'X-Accel-Buffering':'no',
     });
     for await (const chunk of response.body) {
       if (res.destroyed) break;
@@ -534,10 +510,12 @@ const server = http.createServer(async (req,res) => {
     const viewer = await viewerStatus();
     const storage = getStorageInfo();
     const homebase = getHomebaseStatus();
+    const battery = getBatteryStatus();
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
     res.end(JSON.stringify({
       ...viewer,
       homebase,
+      battery,
       system:{ startedAt:serverStartedAt, uptimeSeconds:Math.round(process.uptime()) },
       security:{ ...state, eventSeconds:config.eventSeconds, wakeTimeoutSeconds:config.wakeTimeoutSeconds, storage },
     }));
@@ -587,7 +565,8 @@ const server = http.createServer(async (req,res) => {
   }
   if (req.method === 'POST' && url.pathname === '/api/stop') {
     if (state.eventActive) {
-      res.writeHead(409,{ 'Content-Type':'application/json' }); res.end(JSON.stringify({ ok:false, error:'Beveiligingsopname is bezig' })); return;
+      res.writeHead(409,{ 'Content-Type':'application/json' });
+      res.end(JSON.stringify({ ok:false, error:'Beveiligingsopname is bezig' })); return;
     }
     try {
       const data = await viewerJson('/api/stop',{ method:'POST' });
