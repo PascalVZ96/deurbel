@@ -1,9 +1,6 @@
 mqtt:
   enabled: false
 
-auth:
-  reset_admin_password: true
-
 # Eerste AI-fase: volledig lokaal op de Intel iGPU.
 detectors:
   ov:
