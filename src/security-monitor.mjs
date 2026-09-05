@@ -8,6 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const config = {
   port: Number(process.env.WEB_PORT || 8090),
   viewerPort: Number(process.env.VIEWER_PORT || 8092),
+  lscProxyPort: Number(process.env.LSC_PROXY_PORT || 8093),
   mjpegFps: Number(process.env.MJPEG_FPS || 8),
   eventSeconds: Number(process.env.EVENT_RECORD_SECONDS || 30),
   wakeTimeoutSeconds: Number(process.env.EVENT_WAKE_TIMEOUT_SECONDS || 15),
@@ -20,6 +21,7 @@ const config = {
 };
 
 const VIEWER = `http://127.0.0.1:${config.viewerPort}`;
+const LSC = `http://127.0.0.1:${config.lscProxyPort}`;
 const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'security.html'));
 const settingsFile = path.join(config.dataDir, 'security.json');
 const homebaseStatusFile = path.join(config.dataDir, 'homebase-status.json');
@@ -490,6 +492,43 @@ async function proxyStream(req, res) {
   }
 }
 
+async function proxyLscStream(req, res) {
+  try {
+    const response = await fetch(
+      LSC + '/stream.mjpg?dashboard=1&t=' + Date.now(),
+      { cache:'no-store' }
+    );
+
+    if (!response.ok || !response.body) {
+      if (!res.headersSent) res.writeHead(response.status || 502);
+      res.end();
+      return;
+    }
+
+    res.writeHead(200, {
+      'Content-Type': response.headers.get('content-type') || 'multipart/x-mixed-replace; boundary=frame',
+      'Cache-Control':'no-store, no-cache, must-revalidate',
+      'Pragma':'no-cache',
+      'Connection':'keep-alive',
+      'X-Accel-Buffering':'no',
+    });
+
+    for await (const chunk of response.body) {
+      if (res.destroyed) break;
+      if (!res.write(Buffer.from(chunk))) {
+        await new Promise(resolve => res.once('drain', resolve));
+      }
+    }
+  } catch (error) {
+    console.warn(`[lsc-dashboard] Streamfout: ${error.message}`);
+    if (!res.headersSent) {
+      res.writeHead(502, {'Content-Type':'text/plain; charset=utf-8'});
+    }
+  } finally {
+    try { res.end(); } catch {}
+  }
+}
+
 setInterval(() => {
   if (!recorder) return;
   if (Date.now() - recorder.startedAt >= config.maxRecordSeconds * 1000) {
@@ -521,6 +560,30 @@ const server = http.createServer(async (req,res) => {
     }));
     return;
   }
+  if (req.method === 'GET' && url.pathname === '/api/lsc/status') {
+    try {
+      const response = await fetch(LSC + '/api/status', { cache:'no-store' });
+      const body = await response.text();
+      res.writeHead(response.status, {
+        'Content-Type':'application/json; charset=utf-8',
+        'Cache-Control':'no-store',
+      });
+      res.end(body);
+    } catch (error) {
+      res.writeHead(503, {
+        'Content-Type':'application/json; charset=utf-8',
+        'Cache-Control':'no-store',
+      });
+      res.end(JSON.stringify({
+        configured:false,
+        active:false,
+        online:false,
+        error:error.message
+      }));
+    }
+    return;
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/recordings') {
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
     res.end(JSON.stringify({ recordings:listRecordings() })); return;
@@ -586,6 +649,7 @@ const server = http.createServer(async (req,res) => {
     refreshStorage();
     res.writeHead(200,{ 'Content-Type':'application/json' }); res.end('{"ok":true}'); return;
   }
+  if (req.method === 'GET' && url.pathname === '/lsc/stream.mjpg') { await proxyLscStream(req,res); return; }
   if (req.method === 'GET' && url.pathname === '/stream.mjpg') { await proxyStream(req,res); return; }
   if (req.method === 'GET' && url.pathname.startsWith('/recordings/')) {
     const name = decodeURIComponent(url.pathname.slice('/recordings/'.length));

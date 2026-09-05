@@ -33,6 +33,13 @@
     .modal{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(3,5,8,.84);backdrop-filter:blur(10px)}.modal.open{display:flex}.modal-card{width:min(100%,1050px);max-height:92vh;overflow:auto;background:#0e141c;border:1px solid #334052;border-radius:20px;box-shadow:0 30px 100px rgba(0,0,0,.55)}.modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border-bottom:1px solid var(--line)}.modal-title strong{display:block;font-size:13px}.modal-title span{display:block;color:var(--muted);font-size:10px;margin-top:2px}.modal-close{width:36px;height:36px;border-radius:10px;background:#1a2330;color:#fff;border:1px solid #303d4d;cursor:pointer}.modal-video{width:100%;max-height:70vh;display:block;background:#000}.modal-actions{display:flex;gap:8px;justify-content:flex-end;padding:12px 15px;border-top:1px solid var(--line)}
     .toast{position:fixed;right:18px;bottom:18px;z-index:120;display:none;max-width:min(380px,calc(100vw - 36px));padding:11px 13px;border-radius:12px;background:#18212c;border:1px solid #344356;color:#eaf0f8;box-shadow:0 16px 55px rgba(0,0,0,.4);font-size:12px}.toast.show{display:block}
     @media(max-width:1150px){.metrics{grid-template-columns:repeat(3,1fr)}.system-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:1050px){.hero{grid-template-columns:1fr}.live-layout{grid-template-columns:1fr}.live-side{display:grid;grid-template-columns:1fr 1fr;gap:12px}}@media(max-width:720px){.shell{padding:12px}.topbar{margin:-12px -12px 14px;padding:11px 12px}.brand-sub{display:none}.top-actions .battery-top{display:none}.camera-grid{grid-template-columns:1fr}.live-side{display:block}.action-stack{margin-top:14px}.metrics{grid-template-columns:repeat(2,1fr)}.storage-grid{grid-template-columns:repeat(2,1fr)}.retention-row{align-items:stretch;flex-direction:column}.filters{width:100%}.filters>*{flex:1;min-width:135px}input[type=search]{width:100%;min-width:100%;flex-basis:100%}.recording-grid{grid-template-columns:1fr}.system-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:440px){.health-grid{grid-template-columns:1fr}.system-grid{grid-template-columns:1fr}}
+
+    .camera-card.lsc-card{grid-column:1/-1}
+    .camera-view.lsc{aspect-ratio:16/9;position:relative;background:#05070a}
+    .lsc-source{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+    #lscStatus.online{color:#7ee2a8}
+    #lscStatus.connecting{color:#f4c35d}
+    #lscStatus.offline{color:#ff8998}
   </style>
 </head>
 <body>
@@ -71,11 +78,27 @@
     </section>
 
     <section id="live" class="section">
-      <div class="section-head"><div><h2>Livebeeld</h2><p>Alleen actief wanneer je het handmatig opent; automatische HomeBase-opnames starten geen livestream.</p></div><span id="liveBadge" class="badge">Camera slaapt</span></div>
+      <div class="section-head"><div><h2>Livebeeld</h2><p>De Eufy-deurbel start alleen handmatig; de netgevoede LSC-camera is direct beschikbaar zolang dit dashboard open staat.</p></div><span id="liveBadge" class="badge">Camera slaapt</span></div>
       <div class="live-layout">
         <div class="camera-grid">
           <article class="camera-card"><div class="camera-head"><strong>Hoofdcamera</strong><span>Bovenste lens · 4:3</span></div><div class="camera-view top"><img id="topStream" class="crop-source" alt="Livebeeld hoofdcamera"><div class="placeholder dual-placeholder"><div><div class="placeholder-icon">◉</div><strong>Camera slaapt</strong>Livebeeld blijft uit om batterij te besparen.</div></div></div></article>
           <article class="camera-card"><div class="camera-head"><strong>Pakketcamera</strong><span>Onderste lens · 16:9</span></div><div class="camera-view bottom"><img id="bottomStream" class="crop-source" alt="Livebeeld pakketcamera"><div class="placeholder dual-placeholder"><div><div class="placeholder-icon">▣</div><strong>Camera slaapt</strong>De HomeBase bewaart beweging zelfstandig.</div></div></div></article>
+          <article class="camera-card lsc-card">
+            <div class="camera-head">
+              <strong>LSC Smart Connect</strong>
+              <span id="lscStatus">Netgevoed · verbinden…</span>
+            </div>
+            <div class="camera-view lsc">
+              <img id="lscStream" class="lsc-source" src="/lsc/stream.mjpg" alt="Livebeeld LSC Smart Connect">
+              <div id="lscPlaceholder" class="placeholder">
+                <div>
+                  <div class="placeholder-icon">◉</div>
+                  <strong>LSC-camera verbinden…</strong>
+                  Lokale 1080p-stream via Tuya RTSP Bridge.
+                </div>
+              </div>
+            </div>
+          </article>
         </div>
         <aside class="live-side"><div><div class="live-side-title">Zuinige modus</div><p class="live-note">Bewegingsopnames worden door de HomeBase gemaakt en automatisch naar de aparte HDD gekopieerd. Accu-uitlezing gebruikt alleen device-properties en start geen livestream.</p></div><div class="action-stack"><button id="sideStart" class="btn primary">▶ Live bekijken</button><button id="sideStop" class="btn dark" disabled>■ Live stoppen</button></div></aside>
       </div>
@@ -184,5 +207,68 @@ retentionSelect.onchange=async()=>{retentionSelect.disabled=true;try{const d=awa
 [sourceFilter,dateFilter,sortFilter].forEach(e=>e.onchange=renderRecordings);searchFilter.oninput=renderRecordings;modalClose.onclick=closeModal;modal.onclick=e=>{if(e.target===modal)closeModal()};modalDelete.onclick=()=>modalItem&&deleteRecording(modalItem.name);document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal.classList.contains('open'))closeModal()});
 refresh();loadRecordings();setInterval(refresh,1500);setInterval(loadRecordings,15000);
 </script>
+
+<script>
+(() => {
+  const img = document.getElementById('lscStream');
+  const status = document.getElementById('lscStatus');
+  const placeholder = document.getElementById('lscPlaceholder');
+
+  if (!img || !status || !placeholder) return;
+
+  let reconnectTimer = null;
+
+  function reconnect() {
+    if (reconnectTimer) return;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      img.src = '/lsc/stream.mjpg?t=' + Date.now();
+    }, 3000);
+  }
+
+  img.addEventListener('error', reconnect);
+
+  async function updateLscCamera() {
+    try {
+      const response = await fetch('/api/lsc/status', { cache:'no-store' });
+      const s = await response.json();
+
+      if (!s.configured) {
+        status.textContent = 'Niet ingesteld';
+        status.className = 'offline';
+        placeholder.style.display = 'grid';
+        return;
+      }
+
+      if (s.online) {
+        status.textContent = '● Online · 1080p';
+        status.className = 'online';
+        placeholder.style.display = 'none';
+        return;
+      }
+
+      if (s.active) {
+        status.textContent = '● Verbinden…';
+        status.className = 'connecting';
+        placeholder.style.display = 'grid';
+        return;
+      }
+
+      status.textContent = '● Gereed';
+      status.className = '';
+      placeholder.style.display = 'grid';
+    } catch {
+      status.textContent = '● Offline';
+      status.className = 'offline';
+      placeholder.style.display = 'grid';
+      reconnect();
+    }
+  }
+
+  updateLscCamera();
+  setInterval(updateLscCamera, 1500);
+})();
+</script>
+
 </body>
 </html>
