@@ -53,4 +53,8 @@ Als UFW actief is en de testpagina vanaf een andere computer niet bereikbaar is:
 sudo ufw allow 8093/tcp
 ```
 
-De volgende stap is deze MJPEG-bron als derde camerategel in het bestaande Security Center op poort 8090 opnemen.
+## Security Center
+
+De LSC-camera wordt als derde camerategel in het bestaande Security Center op poort `8090` getoond. De LSC-stream werkt onafhankelijk van de Eufy start/stop-knoppen: de batterijgevoede Eufy-deurbel kan blijven slapen terwijl de netgevoede LSC-camera live blijft.
+
+Het dashboard gebruikt de interne LSC-proxy/statusroutes zodat de gebruiker voor normaal gebruik alleen `http://SERVER-IP:8090/` hoeft te openen.
