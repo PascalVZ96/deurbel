@@ -9,7 +9,7 @@ Dit project bevat een tijdelijke herstelservice voor die upstream-bug. De servic
 Vanuit de repository:
 
 ```bash
-sudo ./scripts/install-eufy-autofix.sh
+sudo bash scripts/install-eufy-autofix.sh
 ```
 
 Standaard verwacht de service:
