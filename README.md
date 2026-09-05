@@ -78,7 +78,7 @@ Bij de huidige Mega/v6-overgang kan `eufy-security-ws` soms wel `connected: true
 Installeer de tijdelijke automatische herstelservice met:
 
 ```bash
-sudo ./scripts/install-eufy-autofix.sh
+sudo bash scripts/install-eufy-autofix.sh
 ```
 
 De systemd-timer controleert elke vijf minuten. Bij een gezonde verbinding doet hij niets. Alleen bij de bekende Mega-fout wordt eerst een backup van `persistent.json` gemaakt en daarna een verse Mega-login afgedwongen.
