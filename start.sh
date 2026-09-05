@@ -48,6 +48,7 @@ cleanup() {
   echo "[launcher] Container stopt; processen netjes afsluiten."
   [ -n "${BATTERY_SUP_PID:-}" ] && kill "$BATTERY_SUP_PID" 2>/dev/null || true
   [ -n "${HOMEBASE_SUP_PID:-}" ] && kill "$HOMEBASE_SUP_PID" 2>/dev/null || true
+  [ -n "${LSC_SUP_PID:-}" ] && kill "$LSC_SUP_PID" 2>/dev/null || true
   [ -n "${SECURITY_SUP_PID:-}" ] && kill "$SECURITY_SUP_PID" 2>/dev/null || true
   [ -n "${CONTINUOUS_SUP_PID:-}" ] && kill "$CONTINUOUS_SUP_PID" 2>/dev/null || true
   [ -n "${SUPERVISOR_SUP_PID:-}" ] && kill "$SUPERVISOR_SUP_PID" 2>/dev/null || true
@@ -80,6 +81,17 @@ esac
 supervise "security-monitor" env WEB_PORT="$WEB_PORT" VIEWER_PORT="$VIEWER_PORT" node src/security-monitor.mjs &
 SECURITY_SUP_PID=$!
 
+# De LSC-camera is netgevoed en komt via de lokale Tuya RTSP Bridge binnen.
+# De proxy start alleen als LSC_RTSP_URL is ingesteld en zet RTSP pas om naar
+# MJPEG zodra er daadwerkelijk een browser kijkt.
+if [ -n "${LSC_RTSP_URL:-}" ]; then
+  supervise "lsc-proxy" env LSC_PROXY_PORT="${LSC_PROXY_PORT:-8093}" node src/lsc-proxy.mjs &
+  LSC_SUP_PID=$!
+  echo "[launcher] LSC-camera proxy AAN op poort ${LSC_PROXY_PORT:-8093}."
+else
+  echo "[launcher] LSC-camera proxy UIT; LSC_RTSP_URL is niet ingesteld."
+fi
+
 # Bij een server-/containerstart wachten we eerst tot de lokale dashboard/API-service
 # antwoordt. Hierdoor probeert de HomeBase-poller niet te vroeg de beveiligingsstatus
 # op te vragen. Na 30 seconden starten de monitors alsnog; eigen reconnect blijft fallback.
@@ -93,7 +105,7 @@ HOMEBASE_SUP_PID=$!
 supervise "battery-monitor" node src/battery-monitor.mjs &
 BATTERY_SUP_PID=$!
 
-echo "[launcher] Self-healing actief voor viewer, stream-supervisor, security-monitor, HomeBase-poller en batterijmonitor${CONTINUOUS_SUP_PID:+, plus 24/7-streammonitor}."
+echo "[launcher] Self-healing actief voor viewer, stream-supervisor, security-monitor, HomeBase-poller en batterijmonitor${CONTINUOUS_SUP_PID:+, plus 24/7-streammonitor}${LSC_SUP_PID:+, plus LSC-camera proxy}."
 
 # De security-monitor is de publieke dashboard/API-service. Als zijn supervisor
 # ooit onverwacht volledig stopt, laat Docker de container opnieuw starten.
