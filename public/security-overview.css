@@ -1,0 +1,405 @@
+/* Security Center overview polish
+ * Compactere statuscijfers, camerategels met momentopname en rustige meldingen.
+ */
+
+#view-overview .view-heading{
+  margin:20px 0 14px;
+}
+
+#view-overview .view-heading h1{
+  font-size:1.7rem;
+  font-weight:680;
+  letter-spacing:-.025em;
+}
+
+#view-overview .metrics{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+  margin-bottom:18px;
+}
+
+#view-overview .metrics .metric{
+  min-height:0;
+  padding:12px 14px;
+  border-color:rgba(129,151,178,.16);
+  border-radius:12px;
+  background:rgba(17,27,39,.72);
+}
+
+#view-overview .metrics .metric:nth-child(5){
+  display:none;
+}
+
+#view-overview .metric-top > span:last-child{
+  opacity:.48;
+  font-size:.78rem;
+}
+
+#view-overview .metric-label{
+  font-size:.76rem;
+  font-weight:520;
+  color:#8998aa;
+}
+
+#view-overview .metric-value{
+  margin-top:4px;
+  font-size:1.28rem;
+  font-weight:650;
+  letter-spacing:-.02em;
+}
+
+#view-overview .metric-sub{
+  margin-top:1px;
+  font-size:.72rem;
+  color:#718094;
+}
+
+#view-overview .battery-meter{
+  height:4px;
+  margin-top:6px;
+}
+
+#cameraOverview{
+  margin-top:14px;
+  margin-bottom:20px;
+}
+
+#cameraOverview .section-head{
+  margin-bottom:10px;
+}
+
+#cameraOverview .section-head h2,
+#recentAi .section-head h2{
+  font-size:1.08rem;
+  font-weight:630;
+}
+
+#cameraOverview .section-head p,
+#recentAi .section-head p{
+  font-size:.78rem;
+  color:#7f8da0;
+}
+
+.camera-overview-grid{
+  grid-template-columns:1fr;
+  gap:9px;
+}
+
+.camera-overview-card{
+  display:grid;
+  grid-template-columns:170px minmax(0,1fr);
+  grid-template-areas:
+    "snapshot top"
+    "snapshot ai"
+    "snapshot bottom";
+  gap:0 14px;
+  min-height:118px;
+  padding:0 14px 0 0;
+  overflow:hidden;
+  border-radius:13px;
+  border:1px solid rgba(129,151,178,.18);
+  background:rgba(16,24,34,.78);
+  box-shadow:none;
+}
+
+.camera-overview-card::before{
+  display:none;
+}
+
+.camera-overview-snapshot{
+  grid-area:snapshot;
+  position:relative;
+  min-height:118px;
+  overflow:hidden;
+  background:#0b1118;
+  border-right:1px solid rgba(129,151,178,.14);
+}
+
+.camera-overview-snapshot img{
+  display:block;
+  width:100%;
+  height:100%;
+  min-height:118px;
+  object-fit:cover;
+}
+
+.camera-overview-snapshot-placeholder{
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  padding:12px;
+  text-align:center;
+  color:#718095;
+  font-size:.72rem;
+  line-height:1.4;
+  background:linear-gradient(145deg,#111b27,#0b121a);
+}
+
+.camera-overview-snapshot-badge{
+  position:absolute;
+  left:8px;
+  bottom:8px;
+  padding:3px 7px;
+  border-radius:999px;
+  background:rgba(6,11,16,.78);
+  border:1px solid rgba(255,255,255,.12);
+  color:#dce6f2;
+  font-size:.62rem;
+  backdrop-filter:blur(5px);
+}
+
+.camera-overview-top{
+  grid-area:top;
+  align-items:center;
+  padding-top:12px;
+}
+
+.camera-overview-name{
+  gap:8px;
+}
+
+.camera-overview-icon{
+  width:31px;
+  height:31px;
+  flex-basis:31px;
+  border-radius:9px;
+  border-color:rgba(129,151,178,.16);
+  background:#162131;
+  font-size:.9rem;
+}
+
+.camera-overview-title{
+  font-size:.92rem!important;
+  font-weight:610;
+}
+
+.camera-overview-sub{
+  margin-top:1px;
+  font-size:.7rem!important;
+  color:#78879a;
+}
+
+.camera-overview-state{
+  padding:4px 7px;
+  border-radius:7px;
+  font-size:.67rem!important;
+  font-weight:560;
+}
+
+.camera-overview-ai{
+  grid-area:ai;
+  min-height:0;
+  margin-top:5px;
+  padding:0;
+  border:0;
+  background:transparent;
+}
+
+.camera-overview-ai-label{
+  display:none;
+}
+
+.camera-overview-ai-title{
+  font-size:.78rem!important;
+  font-weight:480;
+  color:#b8c5d4;
+  white-space:normal;
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:1;
+}
+
+.camera-overview-bottom{
+  grid-area:bottom;
+  margin-top:5px;
+  padding-bottom:10px;
+}
+
+.camera-overview-meta{
+  font-size:.68rem!important;
+  color:#718095;
+}
+
+.camera-overview-link{
+  min-width:92px;
+  padding:6px 10px!important;
+  border-radius:8px;
+  border-color:rgba(129,151,178,.18);
+  background:#172333;
+  text-align:center;
+  font-size:.72rem!important;
+  font-weight:560;
+}
+
+#recentAi{
+  margin-top:20px!important;
+}
+
+#recentAiStatus{
+  margin:5px 0 9px;
+  font-size:.7rem;
+}
+
+#recentAiList{
+  gap:7px;
+}
+
+#recentAiList .recent-alert{
+  overflow:hidden;
+  border:1px solid rgba(129,151,178,.18);
+  border-radius:12px;
+  background:rgba(16,24,34,.72);
+}
+
+#recentAiList .recent-alert summary{
+  list-style:none;
+}
+
+#recentAiList .recent-alert summary::-webkit-details-marker{
+  display:none;
+}
+
+.recent-alert-summary{
+  display:grid;
+  grid-template-columns:32px minmax(0,1fr) auto;
+  gap:10px;
+  align-items:center;
+  padding:10px 12px;
+  cursor:pointer;
+}
+
+.recent-alert-icon{
+  width:32px;
+  height:32px;
+  display:grid;
+  place-items:center;
+  border-radius:8px;
+  border:1px solid rgba(129,151,178,.13);
+  background:#172231;
+  font-size:.82rem;
+}
+
+.recent-alert-title{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#dce5ef;
+  font-size:.78rem;
+  font-weight:560;
+}
+
+.recent-alert-meta{
+  margin-top:2px;
+  color:#748397;
+  font-size:.66rem;
+}
+
+.recent-alert-chevron{
+  color:#8291a3;
+  font-size:.82rem;
+  transition:transform .15s ease;
+}
+
+.recent-alert[open] .recent-alert-chevron{
+  transform:rotate(180deg);
+}
+
+.recent-alert-body{
+  padding:0 10px 10px 54px;
+  border-top:1px solid rgba(129,151,178,.10);
+}
+
+#recentAiList .recent-alert-body .ai-history-item{
+  grid-template-columns:96px minmax(0,1fr) auto;
+  gap:12px;
+  padding:11px 0 0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+}
+
+#recentAiList .recent-alert-body .ai-history-thumb{
+  width:96px;
+  height:66px;
+}
+
+#recentAiList .recent-alert-body .ai-history-head .ai-history-title{
+  display:none;
+}
+
+#recentAiList .recent-alert-body .ai-history-summary{
+  display:-webkit-box;
+  margin-top:0;
+  font-size:.76rem;
+  line-height:1.45;
+}
+
+#recentAiList .recent-alert-body .ai-history-meta{
+  margin-top:6px;
+}
+
+#recentAiList .recent-alert-body .ai-history-meta span,
+#recentAiList .recent-alert-body .ai-history-threat{
+  font-size:.65rem;
+}
+
+#recentAiList .recent-alert-body .ai-history-open{
+  min-height:34px;
+  padding:6px 9px;
+  font-size:.7rem;
+  font-weight:560;
+}
+
+@media(max-width:800px){
+  #view-overview .metrics{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .camera-overview-card{
+    grid-template-columns:135px minmax(0,1fr);
+  }
+}
+
+@media(max-width:560px){
+  .camera-overview-card{
+    grid-template-columns:104px minmax(0,1fr);
+    gap:0 10px;
+    padding-right:10px;
+  }
+
+  .camera-overview-snapshot,
+  .camera-overview-snapshot img{
+    min-height:126px;
+  }
+
+  .camera-overview-sub{
+    display:none;
+  }
+
+  .camera-overview-state{
+    max-width:88px;
+  }
+
+  .camera-overview-link{
+    min-width:78px;
+  }
+
+  .recent-alert-body{
+    padding-left:12px;
+  }
+
+  #recentAiList .recent-alert-body .ai-history-item{
+    grid-template-columns:82px minmax(0,1fr);
+  }
+
+  #recentAiList .recent-alert-body .ai-history-thumb{
+    width:82px;
+    height:62px;
+  }
+
+  #recentAiList .recent-alert-body .ai-history-actions{
+    grid-column:1/-1;
+  }
+}
