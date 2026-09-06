@@ -24,6 +24,23 @@
     .live-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px}.camera-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.camera-card{border-radius:18px;overflow:hidden;box-shadow:none}.camera-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;background:#121923}.camera-head strong{font-size:13px}.camera-head span{font-size:11px;color:var(--muted)}
     .camera-view{position:relative;overflow:hidden;background:#05070a}.camera-view.top{aspect-ratio:4 / 3}.camera-view.bottom{aspect-ratio:16 / 9}.crop-source{position:absolute;left:0;width:100%;object-fit:fill;display:none;background:#000}.camera-view.top .crop-source{top:0;height:191.666667%}.camera-view.bottom .crop-source{top:-155.555556%;height:255.555556%}
     .placeholder{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;color:#7f8da1}.placeholder strong{display:block;color:#e9eef6;font-size:15px;margin-bottom:5px}.placeholder-icon{font-size:30px;opacity:.65;margin-bottom:9px}.live-side{padding:16px;border-radius:18px;border:1px solid var(--line);background:var(--panel);box-shadow:none}.live-side-title{font-size:13px;font-weight:800;margin-bottom:11px}.live-note{font-size:12px;line-height:1.55;color:#95a2b4}.action-stack{display:grid;gap:8px;margin-top:14px}.action-stack .btn{width:100%}.alert{display:none;margin-top:12px;padding:12px 14px;border-radius:13px;background:var(--dangerbg);border:1px solid #63323a;color:#ffd1d7;font-size:12px;white-space:pre-wrap}
+    .ai-panel{padding:18px;display:grid;gap:14px}
+    .ai-visual{position:relative;width:min(100%,500px);border-radius:16px;overflow:hidden;background:#080c11;border:1px solid var(--soft)}
+    .ai-thumb{display:none;width:100%;max-height:280px;object-fit:contain;background:#05080c}
+    .ai-thumb-placeholder{min-height:170px;display:grid;place-items:center;text-align:center;padding:24px;color:var(--muted);font-size:12px}
+    .ai-thumb-badge{position:absolute;top:10px;left:10px;padding:6px 9px;border-radius:999px;background:rgba(8,13,19,.88);border:1px solid rgba(255,255,255,.15);font-size:10px;font-weight:800}
+
+    .ai-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+    .ai-icon{flex:0 0 auto;width:48px;height:48px;border-radius:15px;display:grid;place-items:center;background:#182536;border:1px solid #2e435d;font-size:23px}
+    .ai-content{min-width:0;flex:1}
+    .ai-title{font-size:18px;font-weight:830;letter-spacing:-.02em}
+    .ai-summary{margin-top:7px;color:#dce5f1;font-size:14px;line-height:1.55}
+    .ai-scene{padding:13px 14px;border-radius:14px;background:#0d141c;border:1px solid var(--soft);color:#9eabba;font-size:12px;line-height:1.65}
+    .ai-meta{display:flex;gap:8px;flex-wrap:wrap}
+    .ai-meta span{padding:6px 9px;border-radius:999px;background:#111a24;border:1px solid var(--soft);font-size:10px;color:#a9b6c7}
+    .ai-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .ai-empty{color:var(--muted);font-size:13px;line-height:1.55}
+
     .storage{padding:18px}.storage-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.storage-title-wrap{display:flex;align-items:center;gap:11px}.storage-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;background:#18212d;border:1px solid #293545}.storage-title{font-weight:800;font-size:14px}.storage-sub{font-size:11px;color:var(--muted);margin-top:3px}.storage-bar{height:9px;border-radius:999px;overflow:hidden;background:#252e3a;margin-top:16px}.storage-bar>div{height:100%;width:0;background:linear-gradient(90deg,#628bd0,#77a9f6);transition:width .3s}.storage-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:12px}.storage-stat{padding:11px;border-radius:12px;background:#0d131a;border:1px solid var(--soft)}.storage-stat span{display:block;color:var(--muted);font-size:10px;margin-bottom:4px}.storage-stat b{font-size:13px}.retention-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:13px;padding-top:13px;border-top:1px solid var(--soft)}
     select,input[type=search]{min-height:39px;border-radius:11px;background:#141c26;color:#edf2f8;border:1px solid #2d3948;padding:8px 11px}input[type=search]{min-width:220px}select:focus,input:focus{border-color:#567cae;outline:2px solid rgba(114,167,255,.15)}
     .recordings-panel{padding:16px}.recording-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:11px;border-radius:14px;background:#0e141c;border:1px solid var(--soft);margin-bottom:14px}.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.recording-count{font-size:11px;color:var(--muted)}
@@ -41,6 +58,1272 @@
     #lscStatus.connecting{color:#f4c35d}
     #lscStatus.offline{color:#ff8998}
   </style>
+
+
+
+
+<style id="ai-layout-fix-v2">
+
+/* AI kaart zelf */
+#ai .ai-panel{
+  display:block !important;
+  padding:18px !important;
+  min-height:0 !important;
+}
+
+/* Thumbnail links, informatie rechts */
+#ai .ai-main{
+  display:grid !important;
+  grid-template-columns:260px minmax(0,1fr) !important;
+  gap:20px !important;
+  align-items:start !important;
+  width:100% !important;
+}
+
+/* Thumbnail */
+#ai .ai-visual{
+  position:relative !important;
+  width:260px !important;
+  height:146px !important;
+  max-width:none !important;
+  aspect-ratio:auto !important;
+  margin:0 !important;
+  overflow:hidden !important;
+  border-radius:14px !important;
+}
+
+#ai .ai-thumb{
+  width:100% !important;
+  height:100% !important;
+  max-height:none !important;
+  object-fit:cover !important;
+}
+
+/* Alles rechts van de thumbnail */
+#ai .ai-info{
+  display:flex !important;
+  flex-direction:column !important;
+  gap:11px !important;
+  min-width:0 !important;
+  width:100% !important;
+}
+
+#ai .ai-top{
+  display:flex !important;
+  align-items:flex-start !important;
+  gap:12px !important;
+  margin:0 !important;
+}
+
+#ai .ai-icon{
+  width:42px !important;
+  height:42px !important;
+  flex:0 0 42px !important;
+}
+
+#ai .ai-content{
+  flex:1 !important;
+  min-width:0 !important;
+}
+
+#ai .ai-title{
+  font-size:18px !important;
+  line-height:1.25 !important;
+}
+
+#ai .ai-summary{
+  margin-top:5px !important;
+  line-height:1.5 !important;
+}
+
+#ai .ai-scene{
+  width:100% !important;
+  margin:0 !important;
+}
+
+#ai .ai-meta{
+  display:flex !important;
+  flex-wrap:wrap !important;
+  gap:7px !important;
+  margin:0 !important;
+}
+
+#ai .ai-actions{
+  display:flex !important;
+  flex-wrap:wrap !important;
+  gap:8px !important;
+  margin:0 !important;
+}
+
+/* Tablet / mobiel */
+@media(max-width:800px){
+  #ai .ai-main{
+    grid-template-columns:1fr !important;
+  }
+
+  #ai .ai-visual{
+    width:100% !important;
+    max-width:320px !important;
+    height:auto !important;
+    aspect-ratio:16/9 !important;
+  }
+}
+
+</style>
+
+
+<style id="eufy-ai-layout">
+
+#eufyAi .ai-panel{
+  display:block !important;
+  padding:18px !important;
+  min-height:0 !important;
+}
+
+#eufyAi .ai-main{
+  display:grid !important;
+  grid-template-columns:260px minmax(0,1fr) !important;
+  gap:20px !important;
+  align-items:start !important;
+  width:100% !important;
+}
+
+#eufyAi .ai-visual{
+  position:relative !important;
+  width:260px !important;
+  height:146px !important;
+  max-width:none !important;
+  aspect-ratio:auto !important;
+  margin:0 !important;
+  overflow:hidden !important;
+  border-radius:14px !important;
+  background:#080c11 !important;
+  border:1px solid var(--soft) !important;
+}
+
+#eufyAi .ai-thumb{
+  width:100% !important;
+  height:100% !important;
+  max-height:none !important;
+  object-fit:cover !important;
+}
+
+#eufyAi .ai-info{
+  display:flex !important;
+  flex-direction:column !important;
+  gap:11px !important;
+  min-width:0 !important;
+  width:100% !important;
+}
+
+#eufyAi .ai-top{
+  display:flex !important;
+  align-items:flex-start !important;
+  gap:12px !important;
+  margin:0 !important;
+}
+
+#eufyAi .ai-icon{
+  width:42px !important;
+  height:42px !important;
+  flex:0 0 42px !important;
+}
+
+#eufyAi .ai-content{
+  flex:1 !important;
+  min-width:0 !important;
+}
+
+#eufyAi .ai-title{
+  font-size:18px !important;
+  line-height:1.25 !important;
+}
+
+#eufyAi .ai-summary{
+  margin-top:5px !important;
+  line-height:1.5 !important;
+}
+
+#eufyAi .ai-scene{
+  width:100% !important;
+  margin:0 !important;
+}
+
+#eufyAi .ai-meta{
+  display:flex !important;
+  flex-wrap:wrap !important;
+  gap:7px !important;
+  margin:0 !important;
+}
+
+#eufyAi .ai-actions{
+  display:flex !important;
+  flex-wrap:wrap !important;
+  gap:8px !important;
+  margin:0 !important;
+}
+
+@media(max-width:800px){
+  #eufyAi .ai-main{
+    grid-template-columns:1fr !important;
+  }
+
+  #eufyAi .ai-visual{
+    width:100% !important;
+    max-width:320px !important;
+    height:auto !important;
+    aspect-ratio:16/9 !important;
+  }
+}
+
+</style>
+
+
+
+<style id="petfeeder-dashboard-style">
+
+#petfeeder .pf-dashboard{
+  display:grid;
+  grid-template-columns:minmax(430px,520px) minmax(0,1fr);
+  gap:16px;
+  align-items:stretch;
+}
+
+#petfeeder .pf-panel{
+  min-width:0;
+  height:100%;
+}
+
+#petfeeder .pf-live-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+
+#petfeeder .pf-live-frame{
+  position:relative;
+  overflow:hidden;
+  border-radius:16px;
+  border:1px solid var(--soft);
+  background:#05080c;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03);
+}
+
+#petfeeder .pf-live-frame img{
+  display:block;
+  width:100%;
+  aspect-ratio:16/9;
+  object-fit:cover;
+  background:#000;
+}
+
+#petfeeder .pf-live-badges{
+  position:absolute;
+  top:10px;
+  right:10px;
+  z-index:2;
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+
+#petfeeder .pf-live-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  background:rgba(8,13,19,.82);
+  border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(6px);
+  font-size:11px;
+  font-weight:800;
+  color:#eef4ff;
+}
+
+#petfeeder .pf-live-label{
+  position:absolute;
+  left:10px;
+  bottom:10px;
+  padding:5px 9px;
+  border-radius:999px;
+  background:rgba(8,13,19,.82);
+  border:1px solid rgba(255,255,255,.12);
+  font-size:10px;
+  font-weight:800;
+  color:#eef4ff;
+}
+
+#petfeeder .pf-ai-main{
+  display:grid;
+  grid-template-columns:180px minmax(0,1fr);
+  gap:18px;
+  align-items:start;
+}
+
+#petfeeder .pf-ai-visual{
+  position:relative;
+  width:180px;
+  height:102px;
+  overflow:hidden;
+  border-radius:14px;
+  border:1px solid var(--soft);
+  background:#05080c;
+  flex:0 0 180px;
+}
+
+#petfeeder .pf-ai-thumb{
+  display:none;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+#petfeeder .pf-ai-placeholder{
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  padding:15px;
+  color:var(--muted);
+  font-size:11px;
+  text-align:center;
+}
+
+#petfeeder .pf-ai-badge{
+  position:absolute;
+  top:8px;
+  left:8px;
+  z-index:2;
+  padding:4px 7px;
+  border-radius:999px;
+  background:rgba(6,11,17,.88);
+  border:1px solid rgba(255,255,255,.14);
+  font-size:9px;
+  font-weight:800;
+}
+
+#petfeeder .pf-ai-info{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  min-width:0;
+}
+
+#petfeeder .pf-ai-top{
+  display:flex;
+  gap:11px;
+  align-items:flex-start;
+}
+
+#petfeeder .pf-ai-icon{
+  width:42px;
+  height:42px;
+  flex:0 0 42px;
+  display:grid;
+  place-items:center;
+  border-radius:13px;
+  background:#182536;
+  border:1px solid #2e435d;
+  font-size:19px;
+}
+
+#petfeeder .pf-ai-title{
+  font-size:17px;
+  font-weight:830;
+  line-height:1.25;
+}
+
+#petfeeder .pf-ai-summary{
+  margin-top:4px;
+  color:#dce5f1;
+  font-size:13px;
+  line-height:1.5;
+}
+
+#petfeeder .pf-ai-scene{
+  padding:11px 12px;
+  border-radius:12px;
+  background:#0d141c;
+  border:1px solid var(--soft);
+  color:#9eabba;
+  font-size:12px;
+  line-height:1.55;
+}
+
+#petfeeder .pf-ai-meta{
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap;
+}
+
+#petfeeder .pf-ai-meta span{
+  padding:5px 8px;
+  border-radius:999px;
+  background:#111a24;
+  border:1px solid var(--soft);
+  font-size:10px;
+  color:#a9b6c7;
+}
+
+#petfeeder .pf-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+@media(max-width:1100px){
+  #petfeeder .pf-dashboard{
+    grid-template-columns:1fr;
+  }
+}
+
+@media(max-width:700px){
+  #petfeeder .pf-ai-main{
+    grid-template-columns:1fr;
+  }
+
+  #petfeeder .pf-ai-visual{
+    width:100%;
+    max-width:320px;
+    height:auto;
+    aspect-ratio:16/9;
+  }
+}
+
+</style>
+
+
+
+<style id="petfeeder-polish">
+
+/* Hoofdindeling */
+#petfeeder .pf-dashboard{
+  display:grid !important;
+  grid-template-columns:minmax(400px,520px) minmax(0,1fr) !important;
+  gap:18px !important;
+  align-items:stretch !important;
+}
+
+/* Beide kaarten */
+#petfeeder .pf-panel{
+  margin:0 !important;
+  min-width:0 !important;
+}
+
+/* Livekaart */
+#petfeeder .pf-live-panel{
+  padding:0 !important;
+  overflow:hidden !important;
+  background:#090e14 !important;
+}
+
+/* Livebeeld */
+#petfeeder .pf-live-frame{
+  position:relative !important;
+  width:100% !important;
+  height:100% !important;
+  min-height:270px !important;
+  overflow:hidden !important;
+  border:0 !important;
+  border-radius:16px !important;
+  background:#000 !important;
+}
+
+#petfeeder .pf-live-frame img{
+  display:block !important;
+  width:100% !important;
+  height:100% !important;
+  min-height:270px !important;
+  aspect-ratio:16/9 !important;
+  object-fit:cover !important;
+  background:#000 !important;
+}
+
+/* Camera naam onderin */
+#petfeeder .pf-live-label{
+  position:absolute !important;
+  left:12px !important;
+  bottom:12px !important;
+  z-index:3 !important;
+
+  padding:6px 10px !important;
+  border-radius:999px !important;
+
+  background:rgba(5,10,15,.82) !important;
+  backdrop-filter:blur(6px);
+
+  border:1px solid rgba(255,255,255,.16) !important;
+
+  font-size:10px !important;
+  font-weight:800 !important;
+  color:#fff !important;
+
+  box-shadow:0 3px 12px rgba(0,0,0,.25);
+}
+
+/* FPS rechtsboven */
+#petfeeder .pf-fps-overlay{
+  position:absolute !important;
+  top:12px !important;
+  right:12px !important;
+  z-index:3 !important;
+
+  padding:6px 10px !important;
+  border-radius:999px !important;
+
+  background:rgba(5,10,15,.82) !important;
+  backdrop-filter:blur(6px);
+
+  border:1px solid rgba(255,255,255,.16) !important;
+
+  color:#fff !important;
+  font-size:10px !important;
+  font-weight:800 !important;
+
+  box-shadow:0 3px 12px rgba(0,0,0,.25);
+}
+
+/* AI-kaart */
+#petfeeder .pf-ai-panel{
+  padding:16px !important;
+  display:flex !important;
+  align-items:flex-start !important;
+}
+
+/* AI-layout */
+#petfeeder .pf-ai-main{
+  display:grid !important;
+  grid-template-columns:220px minmax(0,1fr) !important;
+  gap:18px !important;
+  width:100% !important;
+  align-items:start !important;
+}
+
+#petfeeder .pf-ai-visual{
+  width:220px !important;
+  height:124px !important;
+  margin:0 !important;
+  border-radius:14px !important;
+}
+
+#petfeeder .pf-ai-info{
+  gap:10px !important;
+  width:100% !important;
+}
+
+#petfeeder .pf-ai-title{
+  font-size:18px !important;
+  line-height:1.25 !important;
+}
+
+#petfeeder .pf-ai-scene{
+  width:100% !important;
+  margin:0 !important;
+}
+
+#petfeeder .pf-actions{
+  margin-top:1px !important;
+}
+
+/* Tablet */
+@media(max-width:1050px){
+
+  #petfeeder .pf-dashboard{
+    grid-template-columns:1fr !important;
+  }
+
+  #petfeeder .pf-live-panel{
+    max-width:650px !important;
+  }
+
+}
+
+/* Mobiel */
+@media(max-width:700px){
+
+  #petfeeder .pf-ai-main{
+    grid-template-columns:1fr !important;
+  }
+
+  #petfeeder .pf-ai-visual{
+    width:100% !important;
+    max-width:320px !important;
+    height:auto !important;
+    aspect-ratio:16/9 !important;
+  }
+
+  #petfeeder .pf-live-frame,
+  #petfeeder .pf-live-frame img{
+    min-height:0 !important;
+  }
+
+}
+
+</style>
+
+
+<style id="lsc-fps-style">
+#lscFpsOverlay{
+  position:absolute;
+  top:12px;
+  right:12px;
+  z-index:20;
+
+  padding:6px 10px;
+  border-radius:999px;
+
+  background:rgba(5,10,15,.82);
+  backdrop-filter:blur(6px);
+
+  border:1px solid rgba(255,255,255,.16);
+
+  color:#fff;
+  font-size:10px;
+  font-weight:800;
+
+  box-shadow:0 3px 12px rgba(0,0,0,.25);
+
+  pointer-events:none;
+}
+</style>
+
+
+<style id="lsc-mode-style">
+
+#lscModeSwitch{
+  position:absolute;
+  right:12px;
+  bottom:12px;
+  z-index:25;
+
+  display:flex;
+  gap:3px;
+
+  padding:4px;
+
+  border-radius:12px;
+
+  background:rgba(5,10,15,.84);
+  backdrop-filter:blur(7px);
+
+  border:1px solid rgba(255,255,255,.16);
+
+  box-shadow:0 3px 14px rgba(0,0,0,.30);
+}
+
+#lscModeSwitch button{
+  appearance:none;
+  border:0;
+
+  padding:6px 10px;
+
+  border-radius:8px;
+
+  background:transparent;
+  color:#9eabba;
+
+  font-family:inherit;
+  font-size:10px;
+  font-weight:800;
+
+  cursor:pointer;
+
+  transition:
+    background .15s ease,
+    color .15s ease,
+    transform .15s ease;
+}
+
+#lscModeSwitch button:hover{
+  color:#fff;
+}
+
+#lscModeSwitch button:active{
+  transform:scale(.96);
+}
+
+#lscModeSwitch button.active{
+  background:#24364b;
+  color:#fff;
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.08),
+    0 2px 7px rgba(0,0,0,.20);
+}
+
+#lscModeSwitch.busy{
+  opacity:.55;
+  pointer-events:none;
+}
+
+</style>
+
+
+<style id="camera-overview-style">
+
+#cameraOverview{
+  margin-bottom:24px;
+}
+
+.camera-overview-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+}
+
+.camera-overview-card{
+  position:relative;
+  overflow:hidden;
+
+  min-width:0;
+  padding:17px;
+
+  border-radius:18px;
+  border:1px solid var(--soft);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(25,36,49,.92),
+      rgba(12,18,26,.96)
+    );
+
+  box-shadow:
+    0 8px 30px rgba(0,0,0,.16);
+}
+
+.camera-overview-card::before{
+  content:"";
+  position:absolute;
+  inset:0 auto 0 0;
+  width:3px;
+
+  background:
+    linear-gradient(
+      to bottom,
+      #60a5fa,
+      #34d399
+    );
+}
+
+.camera-overview-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.camera-overview-name{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+
+.camera-overview-icon{
+  width:40px;
+  height:40px;
+  flex:0 0 40px;
+
+  display:grid;
+  place-items:center;
+
+  border-radius:12px;
+
+  background:#172335;
+  border:1px solid #2b405b;
+
+  font-size:19px;
+}
+
+.camera-overview-title{
+  font-size:15px;
+  font-weight:850;
+}
+
+.camera-overview-sub{
+  margin-top:2px;
+  font-size:10px;
+  color:var(--muted);
+}
+
+.camera-overview-state{
+  flex:0 0 auto;
+
+  padding:5px 9px;
+  border-radius:999px;
+
+  font-size:10px;
+  font-weight:800;
+
+  background:#111a24;
+  border:1px solid var(--soft);
+  color:#aab7c7;
+}
+
+.camera-overview-state.good{
+  color:#b9f8d2;
+  background:#10261c;
+  border-color:#275e43;
+}
+
+.camera-overview-state.warn{
+  color:#ffe7a0;
+  background:#29220f;
+  border-color:#665724;
+}
+
+.camera-overview-state.bad{
+  color:#ffc1c8;
+  background:#2c1418;
+  border-color:#693039;
+}
+
+.camera-overview-ai{
+  margin-top:15px;
+
+  min-height:54px;
+
+  padding:11px 12px;
+
+  border-radius:12px;
+
+  background:rgba(6,11,17,.48);
+  border:1px solid rgba(255,255,255,.06);
+}
+
+.camera-overview-ai-label{
+  margin-bottom:4px;
+
+  text-transform:uppercase;
+  letter-spacing:.08em;
+
+  font-size:9px;
+  font-weight:800;
+
+  color:#8290a2;
+}
+
+.camera-overview-ai-title{
+  overflow:hidden;
+
+  font-size:12px;
+  font-weight:750;
+  line-height:1.45;
+
+  color:#e5edf7;
+
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.camera-overview-bottom{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+
+  margin-top:12px;
+}
+
+.camera-overview-meta{
+  min-width:0;
+
+  overflow:hidden;
+
+  font-size:10px;
+  color:#8492a4;
+
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.camera-overview-link{
+  flex:0 0 auto;
+
+  padding:6px 9px;
+  border-radius:9px;
+
+  text-decoration:none;
+
+  font-size:10px;
+  font-weight:800;
+
+  color:#e5edf7;
+  background:#172333;
+  border:1px solid #2c4058;
+}
+
+.camera-overview-link:hover{
+  background:#213149;
+}
+
+@media(max-width:1000px){
+  .camera-overview-grid{
+    grid-template-columns:1fr 1fr;
+  }
+}
+
+@media(max-width:650px){
+  .camera-overview-grid{
+    grid-template-columns:1fr;
+  }
+}
+
+</style>
+
+
+<style id="ai-history-style">
+
+#aiHistory{
+  margin-bottom:24px;
+}
+
+.ai-history-toolbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+
+  margin-bottom:14px;
+}
+
+.ai-history-filters{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+
+.ai-history-filter{
+  appearance:none;
+  border:1px solid var(--soft);
+
+  padding:7px 11px;
+
+  border-radius:999px;
+
+  color:#aab7c7;
+  background:#111923;
+
+  font-family:inherit;
+  font-size:10px;
+  font-weight:800;
+
+  cursor:pointer;
+
+  transition:
+    background .15s ease,
+    color .15s ease,
+    border-color .15s ease;
+}
+
+.ai-history-filter:hover{
+  color:#fff;
+  border-color:#3b536e;
+}
+
+.ai-history-filter.active{
+  color:#fff;
+  background:#203249;
+  border-color:#385575;
+}
+
+.ai-history-count{
+  color:var(--muted);
+  font-size:11px;
+}
+
+
+.ai-history-list{
+  display:grid;
+  gap:10px;
+}
+
+
+.ai-history-item{
+  display:grid;
+
+  grid-template-columns:
+    148px
+    minmax(0,1fr)
+    auto;
+
+  gap:14px;
+
+  align-items:center;
+
+  padding:12px;
+
+  border:1px solid var(--soft);
+  border-radius:16px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(18,27,38,.92),
+      rgba(10,16,23,.95)
+    );
+}
+
+
+.ai-history-thumb{
+  position:relative;
+
+  width:148px;
+  height:84px;
+
+  overflow:hidden;
+
+  border-radius:12px;
+
+  background:#06090d;
+  border:1px solid rgba(255,255,255,.07);
+}
+
+
+.ai-history-thumb img{
+  display:block;
+
+  width:100%;
+  height:100%;
+
+  object-fit:cover;
+}
+
+
+.ai-history-thumb-empty{
+  position:absolute;
+  inset:0;
+
+  display:grid;
+  place-items:center;
+
+  color:#718093;
+
+  font-size:10px;
+  text-align:center;
+  padding:10px;
+}
+
+
+.ai-history-source{
+  position:absolute;
+
+  left:7px;
+  bottom:7px;
+
+  padding:4px 7px;
+
+  border-radius:999px;
+
+  background:rgba(5,10,15,.85);
+
+  border:1px solid rgba(255,255,255,.14);
+
+  color:#fff;
+
+  font-size:8px;
+  font-weight:850;
+}
+
+
+.ai-history-content{
+  min-width:0;
+}
+
+
+.ai-history-head{
+  display:flex;
+
+  align-items:center;
+  gap:8px;
+
+  min-width:0;
+}
+
+
+.ai-history-title{
+  min-width:0;
+
+  overflow:hidden;
+
+  font-size:14px;
+  font-weight:850;
+
+  color:#eef4fb;
+
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+
+.ai-history-threat{
+  flex:0 0 auto;
+
+  padding:4px 7px;
+
+  border-radius:999px;
+
+  background:#15202c;
+  border:1px solid #293a4c;
+
+  color:#aebccc;
+
+  font-size:9px;
+  font-weight:800;
+}
+
+
+.ai-history-threat.warn{
+  color:#ffe9a7;
+  background:#2b2410;
+  border-color:#665823;
+}
+
+
+.ai-history-threat.danger{
+  color:#ffc2c8;
+  background:#2f1519;
+  border-color:#693139;
+}
+
+
+.ai-history-summary{
+  margin-top:5px;
+
+  color:#acb8c7;
+
+  font-size:11px;
+  line-height:1.5;
+
+  overflow:hidden;
+
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+}
+
+
+.ai-history-meta{
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap;
+
+  margin-top:8px;
+}
+
+
+.ai-history-meta span{
+  padding:4px 7px;
+
+  border-radius:999px;
+
+  background:#101923;
+  border:1px solid rgba(255,255,255,.06);
+
+  color:#8190a2;
+
+  font-size:9px;
+}
+
+
+.ai-history-actions{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+
+  min-width:118px;
+}
+
+
+.ai-history-open{
+  appearance:none;
+
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+
+  border:1px solid #304760;
+
+  padding:8px 10px;
+
+  border-radius:10px;
+
+  text-decoration:none;
+
+  color:#eef4fb;
+  background:#172536;
+
+  font-family:inherit;
+  font-size:10px;
+  font-weight:800;
+
+  cursor:pointer;
+}
+
+
+.ai-history-open:hover{
+  background:#21344b;
+}
+
+
+.ai-history-empty{
+  padding:32px;
+
+  text-align:center;
+
+  border:1px dashed var(--soft);
+  border-radius:16px;
+
+  color:var(--muted);
+  font-size:12px;
+}
+
+
+@media(max-width:800px){
+
+  .ai-history-item{
+    grid-template-columns:110px minmax(0,1fr);
+  }
+
+  .ai-history-thumb{
+    width:110px;
+    height:70px;
+  }
+
+  .ai-history-actions{
+    grid-column:1 / -1;
+    flex-direction:row;
+    min-width:0;
+  }
+
+}
+
+
+@media(max-width:560px){
+
+  .ai-history-item{
+    grid-template-columns:1fr;
+  }
+
+  .ai-history-thumb{
+    width:100%;
+    height:auto;
+    aspect-ratio:16/9;
+  }
+
+  .ai-history-actions{
+    grid-column:auto;
+  }
+
+}
+
+</style>
+
 </head>
 <body>
 <div class="shell">
@@ -49,7 +1332,7 @@
     <div class="top-actions"><span id="topBattery" class="badge battery-top">🔋 Accu…</span><span id="topHomebase" class="badge">HomeBase…</span><span id="badge" class="badge main">Verbinden…</span></div>
   </header>
 
-  <nav class="nav"><a href="#overview">Overzicht</a><a href="#live">Livebeeld</a><a href="#storage">Opslag</a><a href="#recordingsSection">Opnames</a><a href="#system">Systeem</a></nav>
+  <nav class="nav"><a href="#overview">Overzicht</a><a href="#live">Livebeeld</a><a href="#ai">AI</a><a href="#aiHistory">AI Geschiedenis</a><a href="#eufyAi">Eufy AI</a><a href="#petfeeder">Pet Feeder</a><a href="#storage">Opslag</a><a href="#recordingsSection">Opnames</a><a href="#system">Systeem</a></nav>
 
   <main>
     <section id="overview" class="hero section">
@@ -103,6 +1386,537 @@
         <aside class="live-side"><div><div class="live-side-title">Zuinige modus</div><p class="live-note">Bewegingsopnames worden door de HomeBase gemaakt en automatisch naar de aparte HDD gekopieerd. Accu-uitlezing gebruikt alleen device-properties en start geen livestream.</p></div><div class="action-stack"><button id="sideStart" class="btn primary">▶ Live bekijken</button><button id="sideStop" class="btn dark" disabled>■ Live stoppen</button></div></aside>
       </div>
       <div id="error" class="alert"></div>
+    </section>
+
+
+    <section id="cameraOverview" class="section">
+
+      <div class="section-head">
+        <div>
+          <h2>Camera's</h2>
+          <p>
+            Live status en laatste AI-gebeurtenis van alle camera's.
+          </p>
+        </div>
+      </div>
+
+      <div class="camera-overview-grid">
+
+        <article class="camera-overview-card">
+
+          <div class="camera-overview-top">
+
+            <div class="camera-overview-name">
+              <div class="camera-overview-icon">🚪</div>
+
+              <div>
+                <div class="camera-overview-title">
+                  Eufy Voordeur
+                </div>
+
+                <div class="camera-overview-sub">
+                  HomeBase · bewegingsopnames
+                </div>
+              </div>
+            </div>
+
+            <span
+              id="camEufyStatus"
+              class="camera-overview-state"
+            >
+              Laden…
+            </span>
+
+          </div>
+
+          <div class="camera-overview-ai">
+            <div class="camera-overview-ai-label">
+              Laatste AI
+            </div>
+
+            <div
+              id="camEufyAi"
+              class="camera-overview-ai-title"
+            >
+              Laden…
+            </div>
+          </div>
+
+          <div class="camera-overview-bottom">
+            <div
+              id="camEufyMeta"
+              class="camera-overview-meta"
+            >
+              -
+            </div>
+
+            <a
+              class="camera-overview-link"
+              href="#eufyAi"
+            >
+              Bekijken →
+            </a>
+          </div>
+
+        </article>
+
+
+        <article class="camera-overview-card">
+
+          <div class="camera-overview-top">
+
+            <div class="camera-overview-name">
+              <div class="camera-overview-icon">🏠</div>
+
+              <div>
+                <div class="camera-overview-title">
+                  LSC Parkeerplaats
+                </div>
+
+                <div class="camera-overview-sub">
+                  Frigate · OpenVINO · Gemini
+                </div>
+              </div>
+            </div>
+
+            <span
+              id="camLscStatus"
+              class="camera-overview-state"
+            >
+              Laden…
+            </span>
+
+          </div>
+
+          <div class="camera-overview-ai">
+            <div class="camera-overview-ai-label">
+              Laatste AI
+            </div>
+
+            <div
+              id="camLscAi"
+              class="camera-overview-ai-title"
+            >
+              Laden…
+            </div>
+          </div>
+
+          <div class="camera-overview-bottom">
+            <div
+              id="camLscMeta"
+              class="camera-overview-meta"
+            >
+              -
+            </div>
+
+            <a
+              class="camera-overview-link"
+              href="#ai"
+            >
+              Bekijken →
+            </a>
+          </div>
+
+        </article>
+
+
+        <article class="camera-overview-card">
+
+          <div class="camera-overview-top">
+
+            <div class="camera-overview-name">
+              <div class="camera-overview-icon">🐾</div>
+
+              <div>
+                <div class="camera-overview-title">
+                  Pet Feeder
+                </div>
+
+                <div class="camera-overview-sub">
+                  Katdetectie · voerbak AI
+                </div>
+              </div>
+            </div>
+
+            <span
+              id="camPetStatus"
+              class="camera-overview-state"
+            >
+              Laden…
+            </span>
+
+          </div>
+
+          <div class="camera-overview-ai">
+            <div class="camera-overview-ai-label">
+              Laatste AI
+            </div>
+
+            <div
+              id="camPetAi"
+              class="camera-overview-ai-title"
+            >
+              Laden…
+            </div>
+          </div>
+
+          <div class="camera-overview-bottom">
+            <div
+              id="camPetMeta"
+              class="camera-overview-meta"
+            >
+              -
+            </div>
+
+            <a
+              class="camera-overview-link"
+              href="#petfeeder"
+            >
+              Bekijken →
+            </a>
+          </div>
+
+        </article>
+
+      </div>
+
+    </section>
+
+
+    <section id="aiHistory" class="section">
+
+      <div class="section-head">
+        <div>
+          <h2>AI Geschiedenis</h2>
+          <p>
+            Chronologisch overzicht van AI-gebeurtenissen
+            van Eufy, LSC en Pet Feeder.
+          </p>
+        </div>
+
+        <span
+          id="aiHistoryStatus"
+          class="badge"
+        >
+          Laden…
+        </span>
+      </div>
+
+
+      <div class="ai-history-toolbar">
+
+        <div class="ai-history-filters">
+
+          <button
+            type="button"
+            class="ai-history-filter active"
+            data-source="all"
+          >
+            Alles
+          </button>
+
+          <button
+            type="button"
+            class="ai-history-filter"
+            data-source="eufy"
+          >
+            🚪 Eufy
+          </button>
+
+          <button
+            type="button"
+            class="ai-history-filter"
+            data-source="lsc"
+          >
+            🏠 LSC
+          </button>
+
+          <button
+            type="button"
+            class="ai-history-filter"
+            data-source="petfeeder"
+          >
+            🐾 Pet Feeder
+          </button>
+
+        </div>
+
+        <div
+          id="aiHistoryCount"
+          class="ai-history-count"
+        >
+          -
+        </div>
+
+      </div>
+
+
+      <div
+        id="aiHistoryList"
+        class="ai-history-list"
+      >
+        <div class="ai-history-empty">
+          AI-geschiedenis laden…
+        </div>
+      </div>
+
+    </section>
+
+    <section id="ai" class="section">
+      <div class="section-head">
+        <div>
+          <h2>LSC AI</h2>
+          <p>Lokale objectdetectie via Frigate, met Nederlandse gebeurtenisbeschrijving door Gemini.</p>
+        </div>
+        <span id="aiStatus" class="badge">AI laden…</span>
+      </div>
+
+      <article class="panel ai-panel">
+        <div class="ai-main">
+
+          <div class="ai-visual">
+            <img id="aiThumbnail" class="ai-thumb" alt="AI gebeurtenis LSC-camera">
+            <div id="aiThumbPlaceholder" class="ai-thumb-placeholder">
+              AI-thumbnail laden…
+            </div>
+            <span class="ai-thumb-badge">✦ Gemini gebeurtenis</span>
+          </div>
+
+          <div class="ai-info">
+
+            <div class="ai-top">
+              <div class="ai-icon">✦</div>
+              <div class="ai-content">
+                <div id="aiTitle" class="ai-title">Laatste gebeurtenis laden…</div>
+                <div id="aiSummary" class="ai-summary">Frigate wordt gecontroleerd.</div>
+              </div>
+            </div>
+
+            <div id="aiScene" class="ai-scene">
+              Nog geen scènebeschrijving geladen.
+            </div>
+
+            <div class="ai-meta">
+              <span id="aiTime">Tijd: -</span>
+              <span id="aiConfidence">Zekerheid: -</span>
+              <span id="aiThreat">Dreiging: -</span>
+              <span id="aiObjects">Objecten: -</span>
+            </div>
+
+            <div class="ai-actions">
+              <button id="aiRefresh" class="btn dark">↻ AI vernieuwen</button>
+              <a id="aiFrigateLink" class="btn dark" href="#" target="_blank" rel="noopener">
+                ▶ Bekijk AI-opname
+              </a>
+            </div>
+
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section id="eufyAi" class="section">
+      <div class="section-head">
+        <div>
+          <h2>Eufy Voordeur AI</h2>
+          <p>Gemini analyseert automatisch de bewegingsopnames die door de HomeBase zijn opgeslagen.</p>
+        </div>
+        <span id="eufyAiStatus" class="badge">AI laden…</span>
+      </div>
+
+      <article class="panel ai-panel">
+        <div class="ai-main">
+
+          <div class="ai-visual">
+            <img
+              id="eufyAiThumbnail"
+              class="ai-thumb"
+              alt="Eufy AI gebeurtenis"
+              style="display:none"
+            >
+
+            <div
+              id="eufyAiThumbPlaceholder"
+              class="ai-thumb-placeholder"
+            >
+              Eufy-thumbnail laden…
+            </div>
+
+            <span class="ai-thumb-badge">✦ HomeBase + Gemini</span>
+          </div>
+
+          <div class="ai-info">
+
+            <div class="ai-top">
+              <div class="ai-icon">⌂</div>
+
+              <div class="ai-content">
+                <div id="eufyAiTitle" class="ai-title">
+                  Laatste voordeurgebeurtenis laden…
+                </div>
+
+                <div id="eufyAiSummary" class="ai-summary">
+                  HomeBase AI wordt gecontroleerd.
+                </div>
+              </div>
+            </div>
+
+            <div id="eufyAiScene" class="ai-scene">
+              Nog geen scènebeschrijving geladen.
+            </div>
+
+            <div class="ai-meta">
+              <span id="eufyAiTime">Tijd: -</span>
+              <span id="eufyAiConfidence">Zekerheid: -</span>
+              <span id="eufyAiThreat">Dreiging: -</span>
+              <span id="eufyAiFrames">AI-beelden: -</span>
+            </div>
+
+            <div class="ai-actions">
+              <button id="eufyAiRefresh" class="btn dark">
+                ↻ AI vernieuwen
+              </button>
+
+              <button id="eufyAiVideo" class="btn dark" disabled>
+                ▶ Bekijk opname
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </article>
+    </section>
+
+
+    <section id="petfeeder" class="section">
+
+      <div class="section-head">
+        <div>
+          <h2>Pet Feeder</h2>
+          <p>
+            Livebeeld van de voerautomaat met lokale Frigate-detectie
+            en Nederlandse Gemini-beschrijvingen.
+          </p>
+        </div>
+
+        <span id="pfCameraStatus" class="badge">
+          Camera laden…
+        </span>
+      </div>
+
+      <div class="pf-dashboard">
+
+        <article class="panel pf-panel pf-live-panel">
+
+          
+
+          <div class="pf-live-frame">
+            <div class="pf-live-badges">
+              <span id="pfLiveState" class="pf-live-pill">Stand-by</span>
+              <span id="pfLiveFps" class="pf-live-pill" style="display:none;">- FPS</span>
+            </div>
+
+            <img
+              id="pfLiveStream"
+              alt="Pet Feeder livebeeld"
+            >
+
+            <span class="pf-live-label">● Pet Feeder</span>
+            <span id="pfFpsOverlay" class="pf-fps-overlay">-- FPS</span>
+            
+          </div>
+
+        </article>
+
+
+        <article class="panel pf-panel pf-ai-panel">
+
+          <div class="pf-ai-main">
+
+            <div class="pf-ai-visual">
+
+              <img
+                id="pfAiThumbnail"
+                class="pf-ai-thumb"
+                alt="Pet Feeder AI gebeurtenis"
+              >
+
+              <div
+                id="pfAiPlaceholder"
+                class="pf-ai-placeholder"
+              >
+                Wachten op een AI-gebeurtenis…
+              </div>
+
+              <span class="pf-ai-badge">
+                ✦ Frigate + Gemini
+              </span>
+
+            </div>
+
+
+            <div class="pf-ai-info">
+
+              <div class="pf-ai-top">
+
+                <div class="pf-ai-icon">🐾</div>
+
+                <div>
+                  <div id="pfAiTitle" class="pf-ai-title">
+                    Laatste gebeurtenis laden…
+                  </div>
+
+                  <div id="pfAiSummary" class="pf-ai-summary">
+                    Frigate wordt gecontroleerd.
+                  </div>
+                </div>
+
+              </div>
+
+
+              <div id="pfAiScene" class="pf-ai-scene">
+                Zodra een kat of persoon bij de voerbak wordt gedetecteerd,
+                verschijnt hier de AI-beschrijving.
+              </div>
+
+
+              <div class="pf-ai-meta">
+                <span id="pfAiTime">Tijd: -</span>
+                <span id="pfAiConfidence">Zekerheid: -</span>
+                <span id="pfAiThreat">Dreiging: -</span>
+                <span id="pfAiObjects">Objecten: -</span>
+              </div>
+
+
+              <div class="pf-actions">
+
+                <button
+                  id="pfAiRefresh"
+                  class="btn dark"
+                >
+                  ↻ AI vernieuwen
+                </button>
+
+                <a
+                  id="pfAiRecording"
+                  class="btn dark"
+                  href="#"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  ▶ Bekijk AI-opname
+                </a>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </article>
+
+      </div>
+
     </section>
 
     <section id="storage" class="section">
@@ -192,6 +2006,268 @@ function updateStorage(s){const ok=!!s?.ok,p=Math.max(0,Math.min(100,Number(s?.u
 function updateBattery(b){const available=!!b?.available,p=Number(b?.batteryPercent);let type='';if(available){type=b.health==='critical'?'danger':b.health==='low'?'warn':'good'}$('topBattery').className='badge battery-top '+type;$('topBattery').textContent=available?`🔋 ${p}%`:'🔋 Accu onbekend';$('metricBattery').textContent=available?`${p}%`:'-';$('batteryFill').style.width=available?Math.max(0,Math.min(100,p))+'%':'0%';$('batteryMeter').className='battery-meter '+(type==='danger'?'danger':type==='warn'?'warn':'');const temp=Number.isFinite(Number(b?.batteryTemperature))?`${b.batteryTemperature} °C`:'temperatuur onbekend';const trend=Number.isFinite(Number(b?.trend24h))?`${b.trend24h>0?'+':''}${b.trend24h}% / 24u`:'trend wordt opgebouwd';$('metricBatterySub').textContent=available?`${temp} · ${trend}`:(b?.lastError||'Nog geen accudata');setHealth('healthBattery',available?`${p}% · ${b.health==='critical'?'Kritiek':b.health==='low'?'Laag':'Goed'}`:'Onbekend',available?(type==='danger'?'dangertxt':type==='warn'?'warntxt':'goodtxt'):'warntxt');$('batteryStatus').textContent=available?`${p}% · ${b.health}`:'Geen meting';$('batteryTemp').textContent=Number.isFinite(Number(b?.batteryTemperature))?`${b.batteryTemperature} °C`:'-';$('batteryTrend').textContent=trend;$('batteryRead').textContent=b?.lastReadAt?`${fmtDate(b.lastReadAt)} · ${shortAgo(b.lastReadAt)} geleden`:'-';$('batteryCharge').textContent=b?.chargingStatus??'-';$('batteryWifi').textContent=b?.wifiSignalLevel??'-';$('batterySamples').textContent=b?.samples??0}
 
 function syncLiveButtons(active,eventActive,ready){startBtn.disabled=!ready||active;sideStart.disabled=!ready||active;stopBtn.disabled=!active||eventActive;sideStop.disabled=!active||eventActive}
+async function loadLscAi(){
+  const status=$('aiStatus');
+  const title=$('aiTitle');
+  const summary=$('aiSummary');
+  const scene=$('aiScene');
+
+  try{
+    const d=await api('/api/lsc/ai');
+
+    if(!d.available){
+      status.className='badge danger';
+      status.textContent='⚠ AI offline';
+      title.textContent='Frigate AI niet bereikbaar';
+      summary.textContent=d.error||'Geen verbinding met Frigate.';
+      scene.textContent='Controleer of de Frigate-container actief is.';
+      return;
+    }
+
+    if(!d.hasDescription){
+      const aiThumbnail=$('aiThumbnail');
+      const aiThumbPlaceholder=$('aiThumbPlaceholder');
+
+      aiThumbnail.removeAttribute('src');
+      aiThumbnail.removeAttribute('data-review');
+      aiThumbnail.style.display='none';
+      aiThumbPlaceholder.style.display='grid';
+      aiThumbPlaceholder.textContent='Nog geen AI-thumbnail beschikbaar.';
+
+      $('aiFrigateLink').href='https://'+location.hostname+':8971/review';
+      $('aiFrigateLink').textContent='Frigate openen';
+
+      const active=!!d.latestReview?.active;
+
+      status.className='badge '+(active?'warn':'');
+      status.textContent=active?'● AI wacht op einde alert':'AI gereed';
+
+      title.textContent=active
+        ? 'Gebeurtenis wordt nog gevolgd'
+        : 'Nog geen AI-beschrijving gevonden';
+
+      summary.textContent=active
+        ? 'Frigate ziet momenteel een actieve gebeurtenis. Gemini verwerkt deze nadat de alert is afgesloten.'
+        : 'Zodra een nieuwe LSC-alert door Gemini is verwerkt verschijnt de beschrijving hier.';
+
+      scene.textContent='Geen voltooide scènebeschrijving beschikbaar.';
+
+      $('aiTime').textContent='Tijd: -';
+      $('aiConfidence').textContent='Zekerheid: -';
+      $('aiThreat').textContent='Dreiging: -';
+      $('aiObjects').textContent='Objecten: '+(d.latestReview?.objects?.join(', ')||'-');
+      return;
+    }
+
+    status.className='badge good';
+    status.textContent='✦ Gemini actief';
+
+    const aiThumbnail=$('aiThumbnail');
+    const aiThumbPlaceholder=$('aiThumbPlaceholder');
+
+    if(d.reviewId){
+      const wanted='/api/lsc/ai/thumbnail.webp?review='
+        +encodeURIComponent(d.reviewId);
+
+      if(aiThumbnail.dataset.review!==d.reviewId){
+        aiThumbnail.dataset.review=d.reviewId;
+        aiThumbnail.style.display='none';
+        aiThumbPlaceholder.style.display='grid';
+        aiThumbPlaceholder.textContent='AI-thumbnail laden…';
+
+        aiThumbnail.onload=()=>{
+          aiThumbnail.style.display='block';
+          aiThumbPlaceholder.style.display='none';
+        };
+
+        aiThumbnail.onerror=()=>{
+          aiThumbnail.style.display='none';
+          aiThumbPlaceholder.style.display='grid';
+          aiThumbPlaceholder.textContent='Thumbnail niet beschikbaar.';
+        };
+
+        aiThumbnail.src=wanted+'&t='+Date.now();
+      }
+    }
+
+    const frigateBase='https://'+location.hostname+':8971/review';
+    $('aiFrigateLink').href=d.reviewId
+      ? frigateBase+'?id='+encodeURIComponent(d.reviewId)
+      : frigateBase;
+    $('aiFrigateLink').textContent=d.reviewId
+      ? '▶ Bekijk AI-opname'
+      : 'Frigate openen';
+
+    title.textContent=d.title||'AI-gebeurtenis';
+    summary.textContent=d.shortSummary||'Geen korte samenvatting beschikbaar.';
+    scene.textContent=d.scene||'Geen uitgebreide scènebeschrijving beschikbaar.';
+
+    const eventTime=d.endTime||d.startTime;
+    $('aiTime').textContent='Tijd: '+(eventTime?fmtDate(new Date(eventTime*1000)):'-');
+
+    const confidence=Number(d.confidence);
+    $('aiConfidence').textContent='Zekerheid: '+(
+      Number.isFinite(confidence)
+        ? Math.round(confidence*100)+'%'
+        : '-'
+    );
+
+    const threat=Number(d.potentialThreatLevel);
+    $('aiThreat').textContent='Dreiging: '+(
+      Number.isFinite(threat)
+        ? (threat===0?'Geen · niveau 0':'Niveau '+threat)
+        : '-'
+    );
+
+    $('aiObjects').textContent='Objecten: '+(
+      Array.isArray(d.objects)&&d.objects.length
+        ? d.objects.join(', ')
+        : '-'
+    );
+  }catch(e){
+    status.className='badge danger';
+    status.textContent='⚠ AI fout';
+    title.textContent='AI-status kon niet worden geladen';
+    summary.textContent=e.message;
+  }
+}
+
+
+async function loadEufyAi(){
+  const status=$('eufyAiStatus');
+  const title=$('eufyAiTitle');
+  const summary=$('eufyAiSummary');
+  const scene=$('eufyAiScene');
+  const thumb=$('eufyAiThumbnail');
+  const placeholder=$('eufyAiThumbPlaceholder');
+  const videoBtn=$('eufyAiVideo');
+
+  try{
+    const d=await api('/api/eufy/ai');
+
+    if(!d.available){
+      status.className='badge warn';
+      status.textContent='AI wacht';
+
+      title.textContent='Nog geen Eufy AI-resultaat';
+      summary.textContent=d.lastError||'De AI-verwerker is nog niet klaar.';
+      scene.textContent='Zodra een HomeBase-opname is geanalyseerd verschijnt deze hier.';
+
+      videoBtn.disabled=true;
+      return;
+    }
+
+    if(!d.latest){
+      status.className='badge';
+      status.textContent='AI gereed';
+
+      title.textContent='Nog geen geanalyseerde opname';
+      summary.textContent='Nieuwe HomeBase-opnames worden automatisch verwerkt.';
+      scene.textContent='Er is nog geen voltooide Eufy AI-beschrijving beschikbaar.';
+
+      videoBtn.disabled=true;
+      return;
+    }
+
+    const a=d.latest;
+
+    status.className='badge good';
+    status.textContent='✦ Gemini actief';
+
+    title.textContent=a.title||'Voordeurgebeurtenis';
+    summary.textContent=a.shortSummary||'Geen korte samenvatting beschikbaar.';
+    scene.textContent=a.scene||'Geen uitgebreide beschrijving beschikbaar.';
+
+    $('eufyAiTime').textContent=
+      'Tijd: '+(a.createdAt?fmtDate(a.createdAt):'-');
+
+    const confidence=Number(a.confidence);
+
+    $('eufyAiConfidence').textContent=
+      'Zekerheid: '+(
+        Number.isFinite(confidence)
+          ? Math.round(confidence*100)+'%'
+          : '-'
+      );
+
+    const threat=Number(a.potential_threat_level);
+
+    $('eufyAiThreat').textContent=
+      'Dreiging: '+(
+        Number.isFinite(threat)
+          ? (
+              threat===0
+                ? 'Geen · niveau 0'
+                : 'Niveau '+threat
+            )
+          : '-'
+      );
+
+    $('eufyAiFrames').textContent=
+      'AI-beelden: '+(a.frameCount??'-');
+
+    if(a.thumbnailUrl){
+      if(thumb.dataset.src!==a.thumbnailUrl){
+        thumb.dataset.src=a.thumbnailUrl;
+        thumb.style.display='none';
+        placeholder.style.display='grid';
+        placeholder.textContent='Eufy-thumbnail laden…';
+
+        thumb.onload=()=>{
+          thumb.style.display='block';
+          placeholder.style.display='none';
+        };
+
+        thumb.onerror=()=>{
+          thumb.style.display='none';
+          placeholder.style.display='grid';
+          placeholder.textContent='Thumbnail niet beschikbaar.';
+        };
+
+        thumb.src=a.thumbnailUrl+'?t='+Date.now();
+      }
+    }else{
+      thumb.style.display='none';
+      placeholder.style.display='grid';
+      placeholder.textContent='Geen thumbnail beschikbaar.';
+    }
+
+    if(a.recordingFile){
+      videoBtn.dataset.recording=a.recordingFile;
+      videoBtn.disabled=false;
+    }else{
+      videoBtn.removeAttribute('data-recording');
+      videoBtn.disabled=true;
+    }
+
+  }catch(e){
+    status.className='badge danger';
+    status.textContent='⚠ AI fout';
+
+    title.textContent='Eufy AI kon niet worden geladen';
+    summary.textContent=e.message;
+
+    videoBtn.disabled=true;
+  }
+}
+
+async function openEufyAiRecording(){
+  const btn=$('eufyAiVideo');
+  const name=btn.dataset.recording;
+
+  if(!name)return;
+
+  if(!allRecordings.some(x=>x.name===name)){
+    await loadRecordings();
+  }
+
+  if(allRecordings.some(x=>x.name===name)){
+    openModal(name);
+  }else{
+    showError('Bijbehorende HomeBase-opname niet gevonden.');
+  }
+}
+
 async function refresh(){try{const s=await api('/api/status'),sec=s.security||{},storage=sec.storage||{},hb=s.homebase||{},bat=s.battery||{};const ready=s.wsConnected&&s.listening&&s.serialConfigured,healthy=s.streamHealthy;if(sec.eventActive){$('badge').className='badge main '+(healthy?'good':'warn');$('badge').textContent=sec.recording?'● Live-opname':'● Camera wakker maken…'}else if(sec.securityEnabled&&!s.active){const ok=storage.ok&&hb.healthy;$('badge').className='badge main '+(ok?'good':!storage.ok?'danger':'warn');$('badge').textContent=ok?'🛡 Stand-by':!storage.ok?'⚠ Opslagprobleem':'⚠ HomeBase controleren'}else{$('badge').className='badge main '+(healthy?'good':s.recovering?'warn':!ready?'danger':'');$('badge').textContent=s.active?(healthy?'● Live':s.recovering?'● Herverbinden…':'● Verbinden…'):(ready?'Gereed':'Niet gereed')}
 const hbType=hb.healthy?'good':hb.connected?'warn':'danger';$('topHomebase').className='badge '+hbType;$('topHomebase').textContent=hb.healthy?'● HomeBase actief':hb.connected?'● HomeBase wacht':'⚠ HomeBase offline';setHealth('healthHomebase',hb.healthy?'Actief':hb.connected?'Wacht op check':'Offline',hb.healthy?'goodtxt':hb.connected?'warntxt':'dangertxt');setHealth('healthEufy',s.wsConnected?'Verbonden':'Niet verbonden',s.wsConnected?'goodtxt':'dangertxt');setHealth('healthCamera',s.active?(healthy?'Live':'Opstarten'):'Slapend',s.active?(healthy?'goodtxt':'warntxt'):'goodtxt');updateStorage(storage);updateBattery(bat);
 $('heroMode').textContent=sec.securityEnabled?'Zuinige beveiliging actief':'Beveiliging uit';$('securityTitle').textContent=sec.securityEnabled?'Voordeur staat onder bewaking':'Voordeur beveiliging is uit';const batteryNote=bat.available&&bat.batteryPercent<=20?` De deurbelaccu staat op ${bat.batteryPercent}%.`:'';$('securitySub').textContent=(sec.securityEnabled?(sec.eventActive?'Live-trigger is actief; de camera is tijdelijk wakker.':!storage.ok?'Camera slaapt, maar automatisch importeren is geblokkeerd door een opslagprobleem.':hb.healthy?'Camera slaapt. De HomeBase neemt beweging op en de server archiveert automatisch naar de HDD.':'Camera slaapt, maar de HomeBase-monitor heeft geen recente gezonde controle.'):'Automatische HomeBase-import is gepauzeerd. Handmatig live kijken blijft mogelijk.')+batteryNote;
@@ -205,7 +2281,20 @@ securityBtn.onclick=toggleSecurity;startBtn.onclick=sideStart.onclick=startLive;
 testBtn.onclick=async()=>{testBtn.disabled=true;try{await api('/api/trigger?source=test-knop',{method:'POST'});toast('Live-trigger gestart')}catch(e){showError(e.message)}await refresh()};
 retentionSelect.onchange=async()=>{retentionSelect.disabled=true;try{const d=await api('/api/settings/retention?days='+encodeURIComponent(retentionSelect.value),{method:'POST'});lastRetention=d.retentionDays;toast('Bewaartermijn opgeslagen');await refresh();await loadRecordings()}catch(e){showError(e.message)}finally{retentionSelect.disabled=false}};
 [sourceFilter,dateFilter,sortFilter].forEach(e=>e.onchange=renderRecordings);searchFilter.oninput=renderRecordings;modalClose.onclick=closeModal;modal.onclick=e=>{if(e.target===modal)closeModal()};modalDelete.onclick=()=>modalItem&&deleteRecording(modalItem.name);document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal.classList.contains('open'))closeModal()});
-refresh();loadRecordings();setInterval(refresh,1500);setInterval(loadRecordings,15000);
+$('aiRefresh').onclick=loadLscAi;
+$('eufyAiRefresh').onclick=loadEufyAi;
+$('eufyAiVideo').onclick=openEufyAiRecording;
+$('aiFrigateLink').href='https://'+location.hostname+':8971/review';
+
+refresh();
+loadRecordings();
+loadLscAi();
+loadEufyAi();
+
+setInterval(refresh,1500);
+setInterval(loadRecordings,15000);
+setInterval(loadLscAi,10000);
+setInterval(loadEufyAi,10000);
 </script>
 
 <script>
@@ -268,6 +2357,1110 @@ refresh();loadRecordings();setInterval(refresh,1500);setInterval(loadRecordings,
   updateLscCamera();
   setInterval(updateLscCamera, 1500);
 })();
+
+
+function pfEl(id){
+  return document.getElementById(id);
+}
+
+function pfFormatTime(value){
+  if(!value) return '-';
+
+  let date;
+
+  if(typeof value === 'number'){
+    date = new Date(value * 1000);
+  }else{
+    date = new Date(value);
+  }
+
+  if(Number.isNaN(date.getTime())) return String(value);
+
+  return date.toLocaleString('nl-NL',{
+    day:'2-digit',
+    month:'2-digit',
+    year:'numeric',
+    hour:'2-digit',
+    minute:'2-digit',
+    second:'2-digit'
+  });
+}
+
+
+async function loadPetFeederStatus(){
+  const badge = pfEl('pfCameraStatus');
+  const fps = pfEl('pfFpsOverlay');
+
+  if(!badge || !fps) return;
+
+  try{
+    const r = await fetch(
+      '/api/petfeeder/status',
+      {cache:'no-store'}
+    );
+
+    const d = await r.json();
+
+    if(d.online){
+      badge.className='badge good';
+      badge.textContent='● Online';
+
+      const value = Number(d.fps);
+
+      fps.textContent =
+        Number.isFinite(value)
+          ? value.toFixed(1).replace('.0','') + ' FPS'
+          : '-- FPS';
+
+    }else if(d.active){
+      badge.className='badge';
+      badge.textContent='● Verbinden…';
+      fps.textContent='… FPS';
+
+    }else{
+      badge.className='badge';
+      badge.textContent='● Stand-by';
+      fps.textContent='-- FPS';
+    }
+
+  }catch(e){
+    badge.className='badge danger';
+    badge.textContent='● Offline';
+    fps.textContent='Offline';
+  }
+}
+
+
+async function loadPetFeederAi(){
+  const title = pfEl('pfAiTitle');
+  const summary = pfEl('pfAiSummary');
+  const scene = pfEl('pfAiScene');
+  const thumb = pfEl('pfAiThumbnail');
+  const placeholder = pfEl('pfAiPlaceholder');
+  const recording = pfEl('pfAiRecording');
+
+  if(!title) return;
+
+  try{
+    const r = await fetch(
+      '/api/petfeeder/ai',
+      {cache:'no-store'}
+    );
+
+    const d = await r.json();
+
+    if(!d.frigateReachable){
+      title.textContent='Frigate niet bereikbaar';
+      summary.textContent=d.error || 'Geen verbinding met Frigate.';
+      scene.textContent='De AI-status kon niet worden opgehaald.';
+
+      recording.style.display='none';
+      return;
+    }
+
+    if(!d.aiAvailable){
+      title.textContent='Nog geen Pet Feeder AI-gebeurtenis';
+      summary.textContent=
+        'Wachten tot een kat of persoon bij de voerbak wordt gedetecteerd.';
+
+      scene.textContent=
+        'Na afloop van de eerste gebeurtenis maakt Gemini automatisch een Nederlandse beschrijving.';
+
+      pfEl('pfAiTime').textContent='Tijd: -';
+      pfEl('pfAiConfidence').textContent='Zekerheid: -';
+      pfEl('pfAiThreat').textContent='Dreiging: -';
+      pfEl('pfAiObjects').textContent='Objecten: -';
+
+      thumb.style.display='none';
+      placeholder.style.display='grid';
+      recording.style.display='none';
+
+      return;
+    }
+
+
+    title.textContent=
+      d.title ||
+      'Gebeurtenis bij voerbak';
+
+    summary.textContent=
+      d.shortSummary ||
+      'Geen korte samenvatting beschikbaar.';
+
+    scene.textContent=
+      d.scene ||
+      'Geen uitgebreide beschrijving beschikbaar.';
+
+
+    pfEl('pfAiTime').textContent=
+      'Tijd: ' + pfFormatTime(d.startTime);
+
+
+    const confidence = Number(d.confidence);
+
+    pfEl('pfAiConfidence').textContent=
+      'Zekerheid: ' +
+      (
+        Number.isFinite(confidence)
+          ? Math.round(confidence * 100) + '%'
+          : '-'
+      );
+
+
+    const threat = Number(d.potentialThreatLevel);
+
+    pfEl('pfAiThreat').textContent=
+      'Dreiging: ' +
+      (
+        Number.isFinite(threat)
+          ? threat === 0
+            ? 'Geen · niveau 0'
+            : 'Niveau ' + threat
+          : '-'
+      );
+
+
+    let objects = d.objects;
+
+    if(!Array.isArray(objects)){
+      objects = objects ? [objects] : [];
+    }
+
+    pfEl('pfAiObjects').textContent=
+      'Objecten: ' +
+      (
+        objects.length
+          ? objects.join(', ')
+          : '-'
+      );
+
+
+    if(d.reviewId){
+
+      const src =
+        '/api/petfeeder/ai/thumbnail.webp?review=' +
+        encodeURIComponent(d.reviewId) +
+        '&t=' +
+        Date.now();
+
+      thumb.style.display='none';
+      placeholder.style.display='grid';
+      placeholder.textContent='Thumbnail laden…';
+
+      thumb.onload=()=>{
+        thumb.style.display='block';
+        placeholder.style.display='none';
+      };
+
+      thumb.onerror=()=>{
+        thumb.style.display='none';
+        placeholder.style.display='grid';
+        placeholder.textContent='Thumbnail niet beschikbaar.';
+      };
+
+      thumb.src=src;
+
+
+      recording.href=
+        'https://' +
+        location.hostname +
+        ':8971/review?id=' +
+        encodeURIComponent(d.reviewId);
+
+      recording.style.display='inline-flex';
+
+    }else{
+      recording.style.display='none';
+    }
+
+  }catch(e){
+    title.textContent='Pet Feeder AI fout';
+    summary.textContent=e.message;
+    scene.textContent='AI-status kon niet worden geladen.';
+  }
+}
+
+
+function startPetFeederStream(){
+  const img = pfEl('pfLiveStream');
+
+  if(!img) return;
+
+  img.onerror=()=>{
+    const badge=pfEl('pfCameraStatus');
+
+    if(badge){
+      badge.className='badge danger';
+      badge.textContent='● Streamfout';
+    }
+
+    setTimeout(()=>{
+      img.src=
+        '/petfeeder/stream.mjpg?t=' +
+        Date.now();
+    },5000);
+  };
+
+  img.src=
+    '/petfeeder/stream.mjpg?t=' +
+    Date.now();
+}
+
+
+const pfRefreshButton = pfEl('pfAiRefresh');
+
+if(pfRefreshButton){
+  pfRefreshButton.onclick=loadPetFeederAi;
+}
+
+startPetFeederStream();
+loadPetFeederStatus();
+loadPetFeederAi();
+
+setInterval(loadPetFeederStatus,5000);
+setInterval(loadPetFeederAi,10000);
+
+
+
+function setupLscFpsOverlay(){
+  const stream=document.getElementById('lscStream');
+  if(!stream)return;
+
+  const parent=stream.parentElement;
+  if(!parent)return;
+
+  if(getComputedStyle(parent).position==='static'){
+    parent.style.position='relative';
+  }
+
+  let overlay=document.getElementById('lscFpsOverlay');
+
+  if(!overlay){
+    overlay=document.createElement('span');
+    overlay.id='lscFpsOverlay';
+    overlay.textContent='-- FPS';
+    parent.appendChild(overlay);
+  }
+}
+
+async function updateLscFpsOverlay(){
+  setupLscFpsOverlay();
+
+  const overlay=document.getElementById('lscFpsOverlay');
+  if(!overlay)return;
+
+  try{
+    const r=await fetch('/api/lsc/status',{cache:'no-store'});
+    const d=await r.json();
+
+    const fps=Number(d.fps);
+
+    if(d.online || d.active){
+      overlay.textContent=
+        Number.isFinite(fps)
+          ? fps.toFixed(1).replace('.0','')+' FPS'
+          : '-- FPS';
+    }else{
+      overlay.textContent='Stand-by';
+    }
+
+  }catch(e){
+    overlay.textContent='Offline';
+  }
+}
+
+setupLscFpsOverlay();
+updateLscFpsOverlay();
+setInterval(updateLscFpsOverlay,5000);
+
+
+
+function setupLscModeSwitch(){
+  const stream=document.getElementById('lscStream');
+  if(!stream)return;
+
+  const parent=stream.parentElement;
+  if(!parent)return;
+
+  if(getComputedStyle(parent).position==='static'){
+    parent.style.position='relative';
+  }
+
+  if(document.getElementById('lscModeSwitch')){
+    return;
+  }
+
+  const box=document.createElement('div');
+  box.id='lscModeSwitch';
+
+  box.innerHTML=
+    '<button type="button" data-mode="normal">Normal</button>'+
+    '<button type="button" data-mode="enhanced">Enhanced</button>' +
+        '';
+
+  parent.appendChild(box);
+
+  box.querySelectorAll('button').forEach(button=>{
+    button.addEventListener('click',()=>{
+      setLscMode(button.dataset.mode);
+    });
+  });
+}
+
+
+function paintLscMode(mode){
+  const box=document.getElementById('lscModeSwitch');
+  if(!box)return;
+
+  box.querySelectorAll('button').forEach(button=>{
+    button.classList.toggle(
+      'active',
+      button.dataset.mode===mode
+    );
+  });
+}
+
+
+async function loadLscMode(){
+  setupLscModeSwitch();
+
+  try{
+    const r=await fetch(
+      '/api/lsc/mode',
+      {cache:'no-store'}
+    );
+
+    const d=await r.json();
+
+    if(r.ok && d.mode){
+      paintLscMode(d.mode);
+    }
+
+  }catch{}
+}
+
+
+async function setLscMode(mode){
+  const box=document.getElementById('lscModeSwitch');
+  if(!box)return;
+
+  box.classList.add('busy');
+
+  try{
+    const r=await fetch(
+      '/api/lsc/mode?mode='+encodeURIComponent(mode),
+      {
+        method:'POST',
+        cache:'no-store'
+      }
+    );
+
+    const d=await r.json();
+
+    if(!r.ok){
+      throw new Error(
+        d.error || 'Beeldmodus wijzigen mislukt'
+      );
+    }
+
+    paintLscMode(d.mode);
+
+    /*
+     * Stream blijft dezelfde HTTP-verbinding gebruiken.
+     * De proxy start FFmpeg opnieuw met het gekozen filter.
+     */
+    setTimeout(()=>{
+      updateLscFpsOverlay?.();
+    },1500);
+
+  }catch(e){
+    console.warn('LSC mode:',e);
+  }finally{
+    setTimeout(()=>{
+      box.classList.remove('busy');
+    },700);
+  }
+}
+
+
+setupLscModeSwitch();
+loadLscMode();
+
+setInterval(loadLscMode,10000);
+
+
+
+
+function cameraOverviewBadge(id,text,state){
+  const e=document.getElementById(id);
+  if(!e)return;
+
+  e.textContent=text;
+
+  e.className=
+    'camera-overview-state' +
+    (state ? ' '+state : '');
+}
+
+
+async function cameraOverviewJson(url){
+  const r=await fetch(
+    url,
+    {cache:'no-store'}
+  );
+
+  if(!r.ok){
+    throw new Error('HTTP '+r.status);
+  }
+
+  return r.json();
+}
+
+
+async function loadCameraOverview(){
+
+  const results=await Promise.allSettled([
+    cameraOverviewJson('/api/status'),
+    cameraOverviewJson('/api/lsc/status'),
+    cameraOverviewJson('/api/petfeeder/status'),
+
+    cameraOverviewJson('/api/eufy/ai'),
+    cameraOverviewJson('/api/lsc/ai'),
+    cameraOverviewJson('/api/petfeeder/ai')
+  ]);
+
+  const value=i=>
+    results[i].status==='fulfilled'
+      ? results[i].value
+      : null;
+
+
+  const status=value(0);
+  const lsc=value(1);
+  const pet=value(2);
+
+  const eufyAi=value(3);
+  const lscAi=value(4);
+  const petAi=value(5);
+
+
+  /* EUFY */
+
+  const hb=status?.homebase;
+
+  if(hb?.healthy){
+    cameraOverviewBadge(
+      'camEufyStatus',
+      '● Online',
+      'good'
+    );
+
+  }else if(hb?.recovering){
+    cameraOverviewBadge(
+      'camEufyStatus',
+      '● Herstellen',
+      'warn'
+    );
+
+  }else{
+    cameraOverviewBadge(
+      'camEufyStatus',
+      '● Offline',
+      'bad'
+    );
+  }
+
+
+  const battery=status?.battery?.batteryPercent;
+
+  document.getElementById('camEufyMeta').textContent=
+    Number.isFinite(Number(battery))
+      ? 'Batterij '+Math.round(Number(battery))+'%'
+      : hb?.healthy
+        ? 'HomeBase verbonden'
+        : 'HomeBase status onbekend';
+
+
+  document.getElementById('camEufyAi').textContent=
+    eufyAi?.latest?.title ||
+    'Nog geen AI-gebeurtenis';
+
+
+  /* LSC */
+
+  if(lsc?.online){
+    cameraOverviewBadge(
+      'camLscStatus',
+      '● Live',
+      'good'
+    );
+
+  }else if(lsc?.configured){
+    cameraOverviewBadge(
+      'camLscStatus',
+      '● Stand-by',
+      'good'
+    );
+
+  }else{
+    cameraOverviewBadge(
+      'camLscStatus',
+      '● Offline',
+      'bad'
+    );
+  }
+
+
+  document.getElementById('camLscMeta').textContent=
+    (lsc?.fps ?? '-') +
+    ' FPS · ' +
+    (
+      lsc?.mode === 'enhanced'
+        ? 'Enhanced'
+        : 'Normal'
+    );
+
+
+  document.getElementById('camLscAi').textContent=
+    lscAi?.title ||
+    'Nog geen AI-gebeurtenis';
+
+
+  /* PET FEEDER */
+
+  if(pet?.online){
+    cameraOverviewBadge(
+      'camPetStatus',
+      '● Online',
+      'good'
+    );
+
+  }else{
+    cameraOverviewBadge(
+      'camPetStatus',
+      '● Offline',
+      'bad'
+    );
+  }
+
+
+  const petFps=Number(pet?.fps);
+
+  document.getElementById('camPetMeta').textContent=
+    Number.isFinite(petFps)
+      ? petFps.toFixed(1).replace('.0','')+' FPS · Frigate'
+      : 'Frigate';
+
+
+  document.getElementById('camPetAi').textContent=
+    petAi?.title ||
+    'Nog geen AI-gebeurtenis';
+}
+
+
+loadCameraOverview();
+
+setInterval(
+  loadCameraOverview,
+  10000
+);
+
+
+
+
+let aiHistoryItems=[];
+let aiHistorySource='all';
+
+
+function aiHistoryEsc(value){
+  return String(value ?? '')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#039;");
+}
+
+
+function aiHistoryDate(value){
+  if(!value)return '-';
+
+  let d;
+
+  if(
+    typeof value === 'number' ||
+    (
+      typeof value === 'string' &&
+      /^[0-9.]+$/.test(value)
+    )
+  ){
+    let n=Number(value);
+
+    if(n < 1000000000000){
+      n*=1000;
+    }
+
+    d=new Date(n);
+
+  }else{
+    d=new Date(value);
+  }
+
+  if(Number.isNaN(d.getTime())){
+    return '-';
+  }
+
+  return d.toLocaleString(
+    'nl-NL',
+    {
+      day:'2-digit',
+      month:'2-digit',
+      year:'numeric',
+      hour:'2-digit',
+      minute:'2-digit',
+      second:'2-digit'
+    }
+  );
+}
+
+
+function aiHistorySourceInfo(source){
+
+  if(source==='localcar'){
+    return {
+      icon:'🚗',
+      name:'Lokaal'
+    };
+  }
+
+  if(source==='eufy'){
+    return {
+      icon:'🚪',
+      name:'Eufy'
+    };
+  }
+
+  if(source==='petfeeder'){
+    return {
+      icon:'🐾',
+      name:'Pet Feeder'
+    };
+  }
+
+  return {
+    icon:'🏠',
+    name:'LSC'
+  };
+}
+
+
+function aiHistoryThreat(item){
+  const n=Number(
+    item.potentialThreatLevel
+  );
+
+  if(!Number.isFinite(n)){
+    return {
+      text:'Dreiging -',
+      cls:''
+    };
+  }
+
+  if(n >= 2){
+    return {
+      text:'Dreiging '+n,
+      cls:'danger'
+    };
+  }
+
+  if(n === 1){
+    return {
+      text:'Dreiging 1',
+      cls:'warn'
+    };
+  }
+
+  return {
+    text:'Geen dreiging',
+    cls:''
+  };
+}
+
+
+function renderAiHistory(){
+
+  const list =
+    document.getElementById(
+      'aiHistoryList'
+    );
+
+  const count =
+    document.getElementById(
+      'aiHistoryCount'
+    );
+
+  if(!list || !count)return;
+
+
+  const items=
+    aiHistorySource==='all'
+      ? aiHistoryItems
+      : aiHistoryItems.filter(
+          item =>
+            aiHistorySource === 'lsc'
+              ? (
+                  item.source === 'lsc' ||
+                  item.source === 'localcar'
+                )
+              : item.source === aiHistorySource
+        );
+
+
+  count.textContent=
+    items.length +
+    (
+      items.length === 1
+        ? ' gebeurtenis'
+        : ' gebeurtenissen'
+    );
+
+
+  if(!items.length){
+
+    list.innerHTML=
+      '<div class="ai-history-empty">'+
+      'Geen AI-gebeurtenissen gevonden.'+
+      '</div>';
+
+    return;
+  }
+
+
+  list.innerHTML=
+    items.map(item=>{
+
+      const src=
+        aiHistorySourceInfo(
+          item.source
+        );
+
+      const threat=
+        aiHistoryThreat(item);
+
+      const confidence=
+        Number(item.confidence);
+
+      const confidenceText=
+        Number.isFinite(confidence)
+          ? Math.round(confidence*100)+'%'
+          : null;
+
+      let objects=
+        Array.isArray(item.objects)
+          ? item.objects
+          : [];
+
+      objects=
+        objects
+          .map(String)
+          .filter(Boolean);
+
+
+      const thumb=
+        item.thumbnailUrl
+          ? '<img loading="lazy" src="'+
+            aiHistoryEsc(item.thumbnailUrl)+
+            '" alt="">'
+          : '<div class="ai-history-thumb-empty">'+
+            'Geen thumbnail'+
+            '</div>';
+
+
+      return `
+        <article
+          class="ai-history-item"
+          data-source="${aiHistoryEsc(item.source)}"
+        >
+
+          <div class="ai-history-thumb">
+
+            ${thumb}
+
+            <span class="ai-history-source">
+              ${src.icon} ${aiHistoryEsc(src.name)}
+            </span>
+
+          </div>
+
+
+          <div class="ai-history-content">
+
+            <div class="ai-history-head">
+
+              <div class="ai-history-title">
+                ${aiHistoryEsc(
+                  item.title ||
+                  'AI-gebeurtenis'
+                )}
+              </div>
+
+              <span
+                class="ai-history-threat ${threat.cls}"
+              >
+                ${aiHistoryEsc(threat.text)}
+              </span>
+
+            </div>
+
+
+            <div class="ai-history-summary">
+              ${aiHistoryEsc(
+                item.shortSummary ||
+                item.scene ||
+                'Geen samenvatting beschikbaar.'
+              )}
+            </div>
+
+
+            <div class="ai-history-meta">
+
+              <span>
+                ${aiHistoryEsc(
+                  aiHistoryDate(item.createdAt)
+                )}
+              </span>
+
+              ${
+                confidenceText
+                  ? '<span>Zekerheid '+
+                    aiHistoryEsc(confidenceText)+
+                    '</span>'
+                  : ''
+              }
+
+              ${
+                objects.length
+                  ? '<span>'+
+                    aiHistoryEsc(
+                      objects.join(', ')
+                    )+
+                    '</span>'
+                  : ''
+              }
+
+            </div>
+
+          </div>
+
+
+          <div class="ai-history-actions">
+
+            <button
+              type="button"
+              class="ai-history-open"
+              data-history-id="${aiHistoryEsc(item.id)}"
+            >
+              ▶ Bekijk opname
+            </button>
+
+          </div>
+
+        </article>
+      `;
+
+    }).join('');
+
+
+  list
+    .querySelectorAll(
+      '[data-history-id]'
+    )
+    .forEach(button=>{
+
+      button.addEventListener(
+        'click',
+        ()=>openAiHistoryItem(
+          button.dataset.historyId
+        )
+      );
+
+    });
+}
+
+
+function openAiHistoryItem(id){
+
+  const item=
+    aiHistoryItems.find(
+      x => x.id === id
+    );
+
+  if(!item)return;
+
+
+  if(
+    item.recordingType === 'eufy' &&
+    item.recordingFile
+  ){
+
+    if(
+      typeof openModal === 'function'
+    ){
+      openModal(
+        item.recordingFile
+      );
+
+      return;
+    }
+
+    if(item.videoUrl){
+      window.open(
+        item.videoUrl,
+        '_blank',
+        'noopener'
+      );
+
+      return;
+    }
+  }
+
+
+  if(
+    item.recordingType === 'local-car' &&
+    item.videoUrl
+  ){
+    window.open(
+      item.videoUrl,
+      '_blank',
+      'noopener'
+    );
+
+    return;
+  }
+
+
+  if(
+    item.recordingType === 'frigate' &&
+    item.reviewId
+  ){
+
+    window.open(
+      'https://' +
+      location.hostname +
+      ':8971/review?id=' +
+      encodeURIComponent(
+        item.reviewId
+      ),
+      '_blank',
+      'noopener'
+    );
+  }
+}
+
+
+async function loadAiHistory(){
+
+  const status=
+    document.getElementById(
+      'aiHistoryStatus'
+    );
+
+  try{
+
+    const response=
+      await fetch(
+        '/api/ai/history?limit=60',
+        {cache:'no-store'}
+      );
+
+    if(!response.ok){
+      throw new Error(
+        'HTTP '+response.status
+      );
+    }
+
+    const data=
+      await response.json();
+
+    aiHistoryItems=
+      Array.isArray(data.history)
+        ? data.history
+        : [];
+
+
+    if(status){
+      status.className='badge good';
+      status.textContent=
+        '● '+
+        aiHistoryItems.length+
+        ' AI-events';
+    }
+
+    renderAiHistory();
+
+  }catch(error){
+
+    if(status){
+      status.className='badge danger';
+      status.textContent='⚠ Fout';
+    }
+
+    const list=
+      document.getElementById(
+        'aiHistoryList'
+      );
+
+    if(list){
+      list.innerHTML=
+        '<div class="ai-history-empty">'+
+        'AI-geschiedenis kon niet worden geladen: '+
+        aiHistoryEsc(error.message)+
+        '</div>';
+    }
+  }
+}
+
+
+document
+  .querySelectorAll(
+    '.ai-history-filter'
+  )
+  .forEach(button=>{
+
+    button.addEventListener(
+      'click',
+      ()=>{
+
+        aiHistorySource=
+          button.dataset.source ||
+          'all';
+
+        document
+          .querySelectorAll(
+            '.ai-history-filter'
+          )
+          .forEach(b=>
+            b.classList.toggle(
+              'active',
+              b===button
+            )
+          );
+
+        renderAiHistory();
+      }
+    );
+
+  });
+
+
+loadAiHistory();
+
+setInterval(
+  loadAiHistory,
+  15000
+);
+
+
 </script>
 
 </body>

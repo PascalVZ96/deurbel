@@ -2,26 +2,13 @@ import http from 'node:http';
 import { spawn } from 'node:child_process';
 
 const config = {
-  port: Number(process.env.LSC_PROXY_PORT || 8093),
-  rtspUrl: String(process.env.LSC_RTSP_URL || '').trim(),
-  fps: Math.max(1, Math.min(15, Number(process.env.LSC_MJPEG_FPS || 8))),
-  quality: Math.max(2, Math.min(31, Number(process.env.LSC_MJPEG_QUALITY || 5))),
-  idleStopSeconds: Math.max(0, Number(process.env.LSC_IDLE_STOP_SECONDS || 10)),
-  restartDelayMs: Math.max(500, Number(process.env.LSC_RESTART_DELAY_MS || 2000)),
+  port: Number(process.env.PETFEEDER_PROXY_PORT || 8094),
+  rtspUrl: String(process.env.PETFEEDER_RTSP_URL || '').trim(),
+  fps: Math.max(1, Math.min(15, Number(process.env.PETFEEDER_MJPEG_FPS || 8))),
+  quality: Math.max(2, Math.min(31, Number(process.env.PETFEEDER_MJPEG_QUALITY || 5))),
+  idleStopSeconds: Math.max(0, Number(process.env.PETFEEDER_IDLE_STOP_SECONDS || 10)),
+  restartDelayMs: Math.max(500, Number(process.env.PETFEEDER_RESTART_DELAY_MS || 2000)),
 };
-
-let renderMode =
-  String(process.env.LSC_DEFAULT_MODE || 'enhanced').toLowerCase() === 'normal'
-    ? 'normal'
-    : 'enhanced';
-
-function videoFilter() {
-  if (renderMode === 'normal') {
-    return `fps=${config.fps}`;
-  }
-
-  return `fps=${config.fps},hqdn3d=1.0:1.0:2.0:2.0,eq=contrast=1.08:brightness=0.015:saturation=1.05:gamma=1.02,unsharp=5:5:0.55:5:5:0.0`;
-}
 
 const clients = new Set();
 let ffmpeg = null;
@@ -39,7 +26,7 @@ const state = {
   restartCount: 0,
   startedAt: null,
   lastFrameAt: 0,
-  lastError: config.rtspUrl ? null : 'LSC_RTSP_URL is niet ingesteld',
+  lastError: config.rtspUrl ? null : 'PETFEEDER_RTSP_URL is niet ingesteld',
   lastFfmpeg: null,
 };
 
@@ -55,7 +42,6 @@ function publicState() {
     port: config.port,
     fps: config.fps,
     quality: config.quality,
-    mode: renderMode,
   };
 }
 
@@ -74,7 +60,7 @@ function clearIdleTimer() {
 function stopFfmpeg(reason = 'stop') {
   clearRestartTimer();
   if (!ffmpeg) return;
-  console.log(`[lsc] FFmpeg stoppen: ${reason}`);
+  console.log(`[petfeeder] FFmpeg stoppen: ${reason}`);
   const child = ffmpeg;
   ffmpeg = null;
   state.active = false;
@@ -147,7 +133,7 @@ function startFfmpeg() {
   clearRestartTimer();
   if (ffmpeg || !config.rtspUrl) return;
 
-  console.log(`[lsc] RTSP openen voor ${clients.size} client(s).`);
+  console.log(`[petfeeder] RTSP openen voor ${clients.size} client(s).`);
   state.startedAt = new Date().toISOString();
   state.active = true;
   state.lastError = null;
@@ -164,7 +150,7 @@ function startFfmpeg() {
     '-i', config.rtspUrl,
     '-map', '0:v:0',
     '-an',
-    '-vf', videoFilter(),
+    '-vf', `fps=${config.fps}`,
     '-q:v', String(config.quality),
     '-f', 'image2pipe',
     '-vcodec', 'mjpeg',
@@ -183,7 +169,7 @@ function startFfmpeg() {
 
   child.on('error', error => {
     state.lastError = `FFmpeg kon niet starten: ${error.message}`;
-    console.warn(`[lsc] ${state.lastError}`);
+    console.warn(`[petfeeder] ${state.lastError}`);
   });
 
   child.on('exit', (code, signal) => {
@@ -192,10 +178,10 @@ function startFfmpeg() {
     state.online = false;
     if (clients.size > 0) {
       state.lastError = `RTSP-stream stopte (code=${code}, signal=${signal || '-'}); opnieuw verbinden…`;
-      console.warn(`[lsc] ${state.lastError}`);
+      console.warn(`[petfeeder] ${state.lastError}`);
       scheduleRestart();
     } else {
-      console.log(`[lsc] RTSP-stream gestopt (code=${code}, signal=${signal || '-'}).`);
+      console.log(`[petfeeder] RTSP-stream gestopt (code=${code}, signal=${signal || '-'}).`);
     }
   });
 }
@@ -226,11 +212,11 @@ const page = Buffer.from(`<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LSC camera test</title>
+<title>Pet Feeder camera test</title>
 <style>
 :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#090d12;color:#eef3f8;font-family:system-ui,sans-serif}.wrap{width:min(1100px,100%);margin:auto;padding:20px}.card{background:#111720;border:1px solid #26303d;border-radius:18px;overflow:hidden}.head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:14px 16px}.status{font-size:13px;color:#9ca9b9}.good{color:#7ee2a8}.bad{color:#ff8998}img{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;background:#000}.meta{padding:14px 16px;color:#9ca9b9;font-size:13px;line-height:1.5}code{color:#dce7f5}</style>
 </head>
-<body><div class="wrap"><div class="card"><div class="head"><strong>LSC Smart Connect 1080P</strong><span id="status" class="status">Verbinden…</span></div><img src="/stream.mjpg" alt="LSC livebeeld"><div class="meta">RTSP wordt lokaal via FFmpeg naar MJPEG omgezet. Status: <code>/api/status</code> · snapshot: <code>/snapshot.jpg</code></div></div></div><script>async function tick(){try{const r=await fetch('/api/status',{cache:'no-store'}),s=await r.json(),e=document.getElementById('status');e.textContent=s.online?'● Online · '+s.frames+' frames':s.active?'● Verbinden…':'● Wacht op kijker';e.className='status '+(s.online?'good':s.lastError?'bad':'')}catch{}}tick();setInterval(tick,1500)</script></body></html>`);
+<body><div class="wrap"><div class="card"><div class="head"><strong>Pet Feeder</strong><span id="status" class="status">Verbinden…</span></div><img src="/stream.mjpg" alt="LSC livebeeld"><div class="meta">RTSP wordt lokaal via FFmpeg naar MJPEG omgezet. Status: <code>/api/status</code> · snapshot: <code>/snapshot.jpg</code></div></div></div><script>async function tick(){try{const r=await fetch('/api/status',{cache:'no-store'}),s=await r.json(),e=document.getElementById('status');e.textContent=s.online?'● Online · '+s.frames+' frames':s.active?'● Verbinden…':'● Wacht op kijker';e.className='status '+(s.online?'good':s.lastError?'bad':'')}catch{}}tick();setInterval(tick,1500)</script></body></html>`);
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
@@ -242,77 +228,6 @@ const server = http.createServer((req, res) => {
       'Cache-Control': 'no-store',
     });
     res.end(page);
-    return;
-  }
-
-  if (req.method === 'GET' && url.pathname === '/api/mode') {
-    const body = Buffer.from(JSON.stringify({
-      ok:true,
-      mode:renderMode
-    }));
-
-    res.writeHead(200, {
-      'Content-Type':'application/json; charset=utf-8',
-      'Content-Length':body.length,
-      'Cache-Control':'no-store',
-      'Access-Control-Allow-Origin':'*'
-    });
-
-    res.end(body);
-    return;
-  }
-
-  if (req.method === 'POST' && url.pathname === '/api/mode') {
-    const requested =
-      String(url.searchParams.get('mode') || '').toLowerCase();
-
-    if (!['normal','enhanced'].includes(requested)) {
-      const body = Buffer.from(JSON.stringify({
-        ok:false,
-        error:'mode moet normal of enhanced zijn'
-      }));
-
-      res.writeHead(400, {
-        'Content-Type':'application/json; charset=utf-8',
-        'Content-Length':body.length,
-        'Cache-Control':'no-store'
-      });
-
-      res.end(body);
-      return;
-    }
-
-    const changed = requested !== renderMode;
-    renderMode = requested;
-
-    console.log(
-      `[lsc] Beeldmodus: ${renderMode}${changed ? ' (gewijzigd)' : ''}`
-    );
-
-    if (changed && ffmpeg) {
-      stopFfmpeg('beeldmodus gewijzigd');
-
-      setTimeout(() => {
-        if (clients.size > 0 && !ffmpeg) {
-          startFfmpeg();
-        }
-      }, 500);
-    }
-
-    const body = Buffer.from(JSON.stringify({
-      ok:true,
-      mode:renderMode,
-      changed
-    }));
-
-    res.writeHead(200, {
-      'Content-Type':'application/json; charset=utf-8',
-      'Content-Length':body.length,
-      'Cache-Control':'no-store',
-      'Access-Control-Allow-Origin':'*'
-    });
-
-    res.end(body);
     return;
   }
 
@@ -347,7 +262,7 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && url.pathname === '/stream.mjpg') {
     if (!config.rtspUrl) {
       res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('LSC_RTSP_URL is niet ingesteld');
+      res.end('PETFEEDER_RTSP_URL is niet ingesteld');
       return;
     }
 
@@ -385,11 +300,11 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(config.port, '0.0.0.0', () => {
-  console.log(`[lsc] Proxy: http://0.0.0.0:${config.port}`);
+  console.log(`[petfeeder] Proxy: http://0.0.0.0:${config.port}`);
   if (config.rtspUrl) {
-    console.log(`[lsc] Camera geconfigureerd · ${config.fps} fps MJPEG · idle-stop ${config.idleStopSeconds}s`);
+    console.log(`[petfeeder] Camera geconfigureerd · ${config.fps} fps MJPEG · idle-stop ${config.idleStopSeconds}s`);
   } else {
-    console.warn('[lsc] LSC_RTSP_URL ontbreekt; proxy wacht op configuratie.');
+    console.warn('[petfeeder] PETFEEDER_RTSP_URL ontbreekt; proxy wacht op configuratie.');
   }
 });
 

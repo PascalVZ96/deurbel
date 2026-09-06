@@ -9,6 +9,8 @@ const config = {
   port: Number(process.env.WEB_PORT || 8090),
   viewerPort: Number(process.env.VIEWER_PORT || 8092),
   lscProxyPort: Number(process.env.LSC_PROXY_PORT || 8093),
+  petFeederProxyPort: Number(process.env.PETFEEDER_PROXY_PORT || 8094),
+  frigateUrl: process.env.FRIGATE_URL || 'http://127.0.0.1:5000',
   mjpegFps: Number(process.env.MJPEG_FPS || 8),
   eventSeconds: Number(process.env.EVENT_RECORD_SECONDS || 30),
   wakeTimeoutSeconds: Number(process.env.EVENT_WAKE_TIMEOUT_SECONDS || 15),
@@ -22,10 +24,15 @@ const config = {
 
 const VIEWER = `http://127.0.0.1:${config.viewerPort}`;
 const LSC = `http://127.0.0.1:${config.lscProxyPort}`;
+const PETFEEDER = `http://127.0.0.1:${config.petFeederProxyPort}`;
+const FRIGATE = String(config.frigateUrl).replace(/\/+$/, '');
 const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'security.html'));
 const settingsFile = path.join(config.dataDir, 'security.json');
 const homebaseStatusFile = path.join(config.dataDir, 'homebase-status.json');
 const batteryStatusFile = path.join(config.dataDir, 'battery-status.json');
+const eufyAiStatusFile = path.join(config.dataDir, 'eufy-ai.json');
+const frigateFallbackAiFile = path.join(config.dataDir, 'frigate-genai-fallback.json');
+const localCarEventsFile = path.join(config.dataDir, 'local-car-events.json');
 const serverStartedAt = new Date().toISOString();
 fs.mkdirSync(config.recordingsDir, { recursive:true });
 fs.mkdirSync(config.dataDir, { recursive:true });
@@ -85,6 +92,66 @@ async function viewerStatus() {
   try { return await viewerJson('/api/status'); }
   catch (error) {
     return { wsConnected:false, listening:false, active:false, streamHealthy:false, lastError:error.message };
+  }
+}
+
+async function getLscAiStatus() {
+  try {
+    const response = await fetch(
+      FRIGATE + '/api/review?cameras=lsc&limit=20',
+      { cache:'no-store' }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Frigate HTTP ${response.status}`);
+    }
+
+    const items = await response.json();
+    const latest = Array.isArray(items) && items.length ? items[0] : null;
+    const described = Array.isArray(items)
+      ? items.find(item => item?.data?.metadata)
+      : null;
+
+    const latestReview = latest ? {
+      id: latest.id || null,
+      startTime: latest.start_time || null,
+      endTime: latest.end_time || null,
+      active: !latest.end_time,
+      objects: latest.data?.objects || [],
+    } : null;
+
+    if (!described) {
+      return {
+        available: true,
+        hasDescription: false,
+        latestReview,
+      };
+    }
+
+    const meta = described.data?.metadata || {};
+
+    return {
+      available: true,
+      hasDescription: true,
+      latestReview,
+      reviewId: described.id || null,
+      startTime: described.start_time || null,
+      endTime: described.end_time || null,
+      objects: described.data?.objects || [],
+      title: meta.title || null,
+      scene: meta.scene || null,
+      shortSummary: meta.shortSummary || null,
+      confidence: meta.confidence ?? null,
+      potentialThreatLevel: meta.potential_threat_level ?? null,
+      otherConcerns: meta.other_concerns ?? null,
+      generatedTime: meta.time || null,
+    };
+  } catch (error) {
+    return {
+      available: false,
+      hasDescription: false,
+      error: error.message,
+    };
   }
 }
 
@@ -162,6 +229,710 @@ function getBatteryStatus() {
       lastError:error.code === 'ENOENT' ? 'Batterijmonitor nog niet gestart' : error.message,
     };
   }
+}
+
+function getEufyAiStatus() {
+  try {
+    const state = JSON.parse(fs.readFileSync(eufyAiStatusFile, 'utf8'));
+    const items = Object.values(state.items || {})
+      .filter(item =>
+        item?.status === 'done' &&
+        item.recordingFile &&
+        fs.existsSync(path.join(config.recordingsDir, item.recordingFile))
+      )
+      .sort((a,b) =>
+        new Date(b.analyzedAt || b.createdAt || 0) -
+        new Date(a.analyzedAt || a.createdAt || 0)
+      );
+
+    return {
+      available:true,
+      enabled:state.enabled !== false,
+      model:state.model || null,
+      lastRunAt:state.lastRunAt || null,
+      lastError:state.lastError || null,
+      latest:items[0] || null,
+    };
+  } catch (error) {
+    return {
+      available:false,
+      enabled:true,
+      model:null,
+      lastRunAt:null,
+      lastError:error.code === 'ENOENT'
+        ? 'Eufy AI heeft nog geen analyse uitgevoerd'
+        : error.message,
+      latest:null,
+    };
+  }
+}
+
+
+async function getPetFeederAiStatus() {
+  try {
+    const response = await fetch(
+      FRIGATE + '/api/review?cameras=petfeeder&limit=20',
+      { cache:'no-store' }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Frigate HTTP ${response.status}`);
+    }
+
+    const raw = await response.json();
+
+    const reviews = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.reviews)
+        ? raw.reviews
+        : [];
+
+    const described = reviews.find(review => {
+      const metadata = aiMetadataForReview(review);
+      if (!metadata) return false;
+
+      return Boolean(
+        metadata.title ||
+        metadata.scene ||
+        metadata.shortSummary ||
+        metadata.short_summary
+      );
+    });
+
+    const latest = reviews[0] || null;
+    const metadata = aiMetadataForReview(described);
+
+    return {
+      frigateReachable:true,
+      aiAvailable:Boolean(described),
+      reviewCount:reviews.length,
+      latestReviewId:latest?.id || null,
+
+      reviewId:described?.id || null,
+      startTime:
+        described?.start_time ??
+        described?.startTime ??
+        null,
+
+      endTime:
+        described?.end_time ??
+        described?.endTime ??
+        null,
+
+      objects:
+        described?.data?.objects ||
+        described?.objects ||
+        [],
+
+      title:
+        metadata.title ||
+        null,
+
+      shortSummary:
+        metadata.shortSummary ??
+        metadata.short_summary ??
+        null,
+
+      scene:
+        metadata.scene ||
+        null,
+
+      confidence:
+        metadata.confidence ??
+        null,
+
+      potentialThreatLevel:
+        metadata.potential_threat_level ??
+        metadata.potentialThreatLevel ??
+        null,
+
+      otherConcerns:
+        metadata.other_concerns ??
+        metadata.otherConcerns ??
+        null,
+
+      generatedTime:
+        metadata.time ||
+        null,
+    };
+
+  } catch (error) {
+    return {
+      frigateReachable:false,
+      aiAvailable:false,
+      reviewCount:0,
+      latestReviewId:null,
+      reviewId:null,
+      title:null,
+      shortSummary:null,
+      scene:null,
+      confidence:null,
+      potentialThreatLevel:null,
+      otherConcerns:null,
+      objects:[],
+      startTime:null,
+      endTime:null,
+      generatedTime:null,
+      error:error.message,
+    };
+  }
+}
+
+
+function aiHistoryTimestamp(value) {
+  if (value === null || value === undefined) return 0;
+
+  if (typeof value === 'number') {
+    return value < 1000000000000
+      ? value * 1000
+      : value;
+  }
+
+  const n = Number(value);
+
+  if (
+    String(value).trim() !== '' &&
+    Number.isFinite(n)
+  ) {
+    return n < 1000000000000
+      ? n * 1000
+      : n;
+  }
+
+  const parsed = new Date(value).getTime();
+
+  return Number.isFinite(parsed)
+    ? parsed
+    : 0;
+}
+
+
+async function getFrigateAiHistory(camera, limit = 40) {
+  try {
+    const response = await fetch(
+      FRIGATE +
+      '/api/review?cameras=' +
+      encodeURIComponent(camera) +
+      '&limit=' +
+      encodeURIComponent(limit),
+      { cache:'no-store' }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Frigate HTTP ${response.status}`);
+    }
+
+    const raw = await response.json();
+
+    const reviews = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.reviews)
+        ? raw.reviews
+        : [];
+
+    return reviews
+      .map(review => {
+        const metadata =
+          review?.data?.metadata || {};
+
+        const title =
+          metadata.title || null;
+
+        const summary =
+          metadata.shortSummary ??
+          metadata.short_summary ??
+          null;
+
+        const scene =
+          metadata.scene || null;
+
+        if (!title && !summary && !scene) {
+          return null;
+        }
+
+        const startTime =
+          review?.start_time ??
+          review?.startTime ??
+          null;
+
+        const objects =
+          review?.data?.objects ??
+          review?.objects ??
+          [];
+
+        return {
+          id:`${camera}:${review.id}`,
+
+          source:
+            camera === 'petfeeder'
+              ? 'petfeeder'
+              : 'lsc',
+
+          sourceLabel:
+            camera === 'petfeeder'
+              ? 'Pet Feeder'
+              : 'LSC Woonkamer',
+
+          reviewId:review.id,
+
+          createdAt:startTime,
+
+          sortTime:aiHistoryTimestamp(startTime),
+
+          title,
+
+          shortSummary:summary,
+
+          scene,
+
+          confidence:
+            metadata.confidence ??
+            null,
+
+          potentialThreatLevel:
+            metadata.potential_threat_level ??
+            metadata.potentialThreatLevel ??
+            null,
+
+          objects:
+            Array.isArray(objects)
+              ? objects
+              : objects
+                ? [objects]
+                : [],
+
+          thumbnailUrl:
+            camera === 'petfeeder'
+              ? `/api/petfeeder/ai/thumbnail.webp?review=${encodeURIComponent(review.id)}`
+              : `/api/lsc/ai/thumbnail.webp?review=${encodeURIComponent(review.id)}`,
+
+          recordingType:'frigate'
+        };
+      })
+      .filter(Boolean);
+
+  } catch (error) {
+    console.warn(
+      `[ai-history] ${camera}: ${error.message}`
+    );
+
+    return [];
+  }
+}
+
+
+function getEufyAiHistory(limit = 40) {
+  try {
+    const state = JSON.parse(
+      fs.readFileSync(
+        eufyAiStatusFile,
+        'utf8'
+      )
+    );
+
+    return Object.values(state.items || {})
+      .filter(item =>
+        item?.status === 'done' &&
+        item.recordingFile
+      )
+      .map(item => {
+        const createdAt =
+          item.createdAt ||
+          item.analyzedAt ||
+          null;
+
+        return {
+          id:`eufy:${item.recordingFile}`,
+
+          source:'eufy',
+          sourceLabel:'Eufy Voordeur',
+
+          recordingFile:
+            item.recordingFile,
+
+          createdAt,
+
+          sortTime:
+            aiHistoryTimestamp(createdAt),
+
+          title:
+            item.title ||
+            'Voordeurgebeurtenis',
+
+          shortSummary:
+            item.shortSummary ||
+            null,
+
+          scene:
+            item.scene ||
+            null,
+
+          confidence:
+            item.confidence ??
+            null,
+
+          potentialThreatLevel:
+            item.potential_threat_level ??
+            null,
+
+          objects:[],
+
+          thumbnailUrl:
+            item.thumbnailUrl ||
+            null,
+
+          videoUrl:
+            item.videoUrl ||
+            (
+              '/recordings/' +
+              encodeURIComponent(
+                item.recordingFile
+              )
+            ),
+
+          recordingType:'eufy'
+        };
+      })
+      .sort(
+        (a,b) =>
+          b.sortTime - a.sortTime
+      )
+      .slice(0,limit);
+
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.warn(
+        `[ai-history] Eufy: ${error.message}`
+      );
+    }
+
+    return [];
+  }
+}
+
+
+
+function getFallbackAiHistory(limit = 100) {
+  try {
+    const state = JSON.parse(
+      fs.readFileSync(
+        frigateFallbackAiFile,
+        'utf8'
+      )
+    );
+
+    return Object.values(
+      state.items || {}
+    )
+      .filter(item =>
+        item?.status === 'done' &&
+        item?.reviewId &&
+        item?.camera &&
+        item?.title
+      )
+      .map(item => {
+        const camera =
+          String(item.camera);
+
+        return {
+          id:
+            `${camera}:${item.reviewId}`,
+
+          source:
+            camera === 'petfeeder'
+              ? 'petfeeder'
+              : 'lsc',
+
+          sourceLabel:
+            camera === 'petfeeder'
+              ? 'Pet Feeder'
+              : 'LSC Woonkamer',
+
+          reviewId:
+            item.reviewId,
+
+          createdAt:
+            item.createdAt ||
+            item.generatedAt ||
+            null,
+
+          sortTime:
+            aiHistoryTimestamp(
+              item.createdAt ||
+              item.generatedAt
+            ),
+
+          title:
+            item.title ||
+            'AI-gebeurtenis',
+
+          shortSummary:
+            item.shortSummary ||
+            null,
+
+          scene:
+            item.scene ||
+            null,
+
+          confidence:
+            item.confidence ??
+            null,
+
+          potentialThreatLevel:
+            item.potential_threat_level ??
+            item.potentialThreatLevel ??
+            null,
+
+          objects:
+            Array.isArray(item.objects)
+              ? item.objects
+              : [],
+
+          thumbnailUrl:
+            `/api/ai/fallback/thumbnail.webp?review=${encodeURIComponent(item.reviewId)}`,
+
+          recordingType:'frigate',
+
+          fallback:true
+        };
+      })
+      .sort(
+        (a,b) =>
+          b.sortTime - a.sortTime
+      )
+      .slice(0,limit);
+
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.warn(
+        `[ai-history] fallback: ${error.message}`
+      );
+    }
+
+    return [];
+  }
+}
+
+
+
+function getLocalCarHistory(limit = 100) {
+  try {
+    const state = JSON.parse(
+      fs.readFileSync(
+        localCarEventsFile,
+        'utf8'
+      )
+    );
+
+    return Object.values(
+      state.items || {}
+    )
+      .filter(item =>
+        item?.status === 'done' &&
+        item?.eventId
+      )
+      .map(item => ({
+        id:
+          `local-car:${item.eventId}`,
+
+        source:
+          'localcar',
+
+        sourceLabel:
+          'LSC Parkeerplaats · Lokaal',
+
+        eventId:
+          item.eventId,
+
+        createdAt:
+          item.createdAt,
+
+        sortTime:
+          aiHistoryTimestamp(
+            item.createdAt
+          ),
+
+        title:
+          item.title,
+
+        shortSummary:
+          item.shortSummary,
+
+        scene:
+          item.scene,
+
+        confidence:null,
+
+        potentialThreatLevel:0,
+
+        objects:[
+          'car'
+        ],
+
+        local:true,
+
+        googleAiUsed:false,
+
+        thumbnailUrl:
+          `/api/ai/local-car/thumbnail.jpg?event=${encodeURIComponent(item.eventId)}`,
+
+        videoUrl:
+          `/api/ai/local-car/clip.mp4?event=${encodeURIComponent(item.eventId)}`,
+
+        recordingType:
+          'local-car'
+      }))
+      .sort(
+        (a,b)=>
+          b.sortTime-a.sortTime
+      )
+      .slice(0,limit);
+
+  } catch {
+    return [];
+  }
+}
+
+
+async function getCombinedAiHistory(limit = 60) {
+  const perCamera =
+    Math.max(
+      40,
+      Math.min(150, limit * 2)
+    );
+
+  const [
+    lsc,
+    petfeeder
+  ] = await Promise.all([
+    getFrigateAiHistory(
+      'lsc',
+      perCamera
+    ),
+
+    getFrigateAiHistory(
+      'petfeeder',
+      perCamera
+    )
+  ]);
+
+  const eufy =
+    getEufyAiHistory(perCamera);
+
+  const fallback =
+    getFallbackAiHistory(perCamera);
+
+  const localCars =
+    getLocalCarHistory(perCamera);
+
+  /*
+   * Merge op unieke ID.
+   *
+   * Native Frigate krijgt voorrang wanneer dezelfde review
+   * later alsnog door Frigate zelf van AI wordt voorzien.
+   * Anders blijft het fallback-resultaat zichtbaar.
+   */
+  const merged =
+    new Map();
+
+  for (const item of localCars) {
+    merged.set(
+      item.id,
+      item
+    );
+  }
+
+  for (const item of fallback) {
+    merged.set(
+      item.id,
+      item
+    );
+  }
+
+  for (const item of [
+    ...lsc,
+    ...petfeeder
+  ]) {
+    merged.set(
+      item.id,
+      item
+    );
+  }
+
+  for (const item of eufy) {
+    merged.set(
+      item.id,
+      item
+    );
+  }
+
+  return [
+    ...merged.values()
+  ]
+    .sort(
+      (a,b) =>
+        b.sortTime - a.sortTime
+    )
+    .slice(0,limit);
+}
+
+
+function loadFrigateFallbackAi() {
+  try {
+    const state = JSON.parse(
+      fs.readFileSync(
+        frigateFallbackAiFile,
+        'utf8'
+      )
+    );
+
+    return state?.items || {};
+
+  } catch {
+    return {};
+  }
+}
+
+
+function fallbackFor(reviewId) {
+  if (!reviewId) return null;
+
+  const item =
+    loadFrigateFallbackAi()[
+      String(reviewId)
+    ];
+
+  if (
+    !item ||
+    item.status !== 'done'
+  ) {
+    return null;
+  }
+
+  return item;
+}
+
+
+function aiMetadataForReview(review) {
+  if (!review) return {};
+
+  const native =
+    review?.data?.metadata || {};
+
+  if (
+    native.title ||
+    native.scene ||
+    native.shortSummary ||
+    native.short_summary
+  ) {
+    return native;
+  }
+
+  return (
+    fallbackFor(review.id) ||
+    native ||
+    {}
+  );
 }
 
 function listRecordings() {
@@ -529,6 +1300,60 @@ async function proxyLscStream(req, res) {
   }
 }
 
+
+async function proxyPetFeederStream(req, res) {
+  try {
+    const response = await fetch(
+      FRIGATE + '/api/petfeeder',
+      { cache:'no-store' }
+    );
+
+    if (!response.ok || !response.body) {
+      if (!res.headersSent) {
+        res.writeHead(response.status || 502, {
+          'Content-Type':'text/plain; charset=utf-8'
+        });
+      }
+      res.end();
+      return;
+    }
+
+    res.writeHead(200, {
+      'Content-Type':
+        response.headers.get('content-type') ||
+        'multipart/x-mixed-replace; boundary=frame',
+
+      'Cache-Control':'no-store, no-cache, must-revalidate',
+      'Pragma':'no-cache',
+      'Connection':'keep-alive',
+      'X-Accel-Buffering':'no',
+    });
+
+    for await (const chunk of response.body) {
+      if (res.destroyed) break;
+
+      if (!res.write(Buffer.from(chunk))) {
+        await new Promise(resolve =>
+          res.once('drain', resolve)
+        );
+      }
+    }
+
+  } catch (error) {
+    console.warn(
+      `[petfeeder-dashboard] Frigate streamfout: ${error.message}`
+    );
+
+    if (!res.headersSent) {
+      res.writeHead(502, {
+        'Content-Type':'text/plain; charset=utf-8'
+      });
+    }
+  } finally {
+    try { res.end(); } catch {}
+  }
+}
+
 setInterval(() => {
   if (!recorder) return;
   if (Date.now() - recorder.startedAt >= config.maxRecordSeconds * 1000) {
@@ -560,6 +1385,111 @@ const server = http.createServer(async (req,res) => {
     }));
     return;
   }
+  if (req.method === 'GET' && url.pathname === '/api/lsc/ai/thumbnail.webp') {
+    const reviewId = String(url.searchParams.get('review') || '');
+
+    if (!/^[A-Za-z0-9._-]+$/.test(reviewId)) {
+      res.writeHead(400, {
+        'Content-Type':'application/json; charset=utf-8'
+      });
+      res.end(JSON.stringify({ ok:false, error:'Ongeldig review-ID' }));
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        FRIGATE + '/clips/review/thumb-lsc-' + encodeURIComponent(reviewId) + '.webp',
+        { cache:'no-store' }
+      );
+
+      if (!response.ok) {
+        res.writeHead(response.status, {
+          'Content-Type':'application/json; charset=utf-8',
+          'Cache-Control':'no-store',
+        });
+        res.end(JSON.stringify({
+          ok:false,
+          error:`Frigate thumbnail HTTP ${response.status}`
+        }));
+        return;
+      }
+
+      const image = Buffer.from(await response.arrayBuffer());
+
+      res.writeHead(200, {
+        'Content-Type':'image/webp',
+        'Content-Length':image.length,
+        'Cache-Control':'no-store',
+      });
+      res.end(image);
+    } catch (error) {
+      res.writeHead(502, {
+        'Content-Type':'application/json; charset=utf-8',
+        'Cache-Control':'no-store',
+      });
+      res.end(JSON.stringify({
+        ok:false,
+        error:error.message
+      }));
+    }
+
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/lsc/ai') {
+    const ai = await getLscAiStatus();
+    res.writeHead(200, {
+      'Content-Type':'application/json; charset=utf-8',
+      'Cache-Control':'no-store',
+    });
+    res.end(JSON.stringify(ai));
+    return;
+  }
+
+  if (
+    (req.method === 'GET' || req.method === 'POST') &&
+    url.pathname === '/api/lsc/mode'
+  ) {
+    try {
+      const requested =
+        String(url.searchParams.get('mode') || '');
+
+      const target =
+        LSC +
+        '/api/mode' +
+        (requested
+          ? '?mode=' + encodeURIComponent(requested)
+          : '');
+
+      const response = await fetch(target, {
+        method:req.method,
+        cache:'no-store'
+      });
+
+      const body = await response.text();
+
+      res.writeHead(response.status, {
+        'Content-Type':'application/json; charset=utf-8',
+        'Cache-Control':'no-store'
+      });
+
+      res.end(body);
+
+    } catch (error) {
+      res.writeHead(503, {
+        'Content-Type':'application/json; charset=utf-8',
+        'Cache-Control':'no-store'
+      });
+
+      res.end(JSON.stringify({
+        ok:false,
+        error:error.message
+      }));
+    }
+
+    return;
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/lsc/status') {
     try {
       const response = await fetch(LSC + '/api/status', { cache:'no-store' });
@@ -581,6 +1511,310 @@ const server = http.createServer(async (req,res) => {
         error:error.message
       }));
     }
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/eufy/ai') {
+    const ai = getEufyAiStatus();
+    res.writeHead(200, {
+      'Content-Type':'application/json; charset=utf-8',
+      'Cache-Control':'no-store',
+    });
+    res.end(JSON.stringify(ai));
+    return;
+  }
+
+
+  if (req.method === 'GET' && url.pathname === '/api/petfeeder/status') {
+    try {
+      const response = await fetch(
+        FRIGATE + '/api/stats',
+        { cache:'no-store' }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Frigate HTTP ${response.status}`);
+      }
+
+      const stats = await response.json();
+
+      const camera =
+        stats?.cameras?.petfeeder || {};
+
+      const cameraFps =
+        Number(camera.camera_fps || 0);
+
+      const processFps =
+        Number(camera.process_fps || 0);
+
+      res.writeHead(200, {
+        'Content-Type':'application/json; charset=utf-8',
+        'Cache-Control':'no-store',
+      });
+
+      res.end(JSON.stringify({
+        configured:true,
+        active:cameraFps > 0,
+        online:cameraFps > 0,
+        clients:null,
+        fps:cameraFps,
+        processFps,
+        source:'frigate',
+        error:null
+      }));
+
+    } catch (error) {
+      res.writeHead(503, {
+        'Content-Type':'application/json; charset=utf-8',
+        'Cache-Control':'no-store',
+      });
+
+      res.end(JSON.stringify({
+        configured:true,
+        active:false,
+        online:false,
+        clients:null,
+        fps:0,
+        processFps:0,
+        source:'frigate',
+        error:error.message
+      }));
+    }
+
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/petfeeder/ai') {
+    const ai = await getPetFeederAiStatus();
+
+    res.writeHead(200, {
+      'Content-Type':'application/json; charset=utf-8',
+      'Cache-Control':'no-store',
+    });
+
+    res.end(JSON.stringify(ai));
+    return;
+  }
+
+  if (
+    req.method === 'GET' &&
+    url.pathname === '/api/petfeeder/ai/thumbnail.webp'
+  ) {
+    const review = String(url.searchParams.get('review') || '');
+
+    if (!/^[A-Za-z0-9._-]+$/.test(review)) {
+      res.writeHead(400);
+      res.end();
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        FRIGATE +
+        '/clips/review/thumb-petfeeder-' +
+        encodeURIComponent(review) +
+        '.webp',
+        { cache:'no-store' }
+      );
+
+      if (!response.ok) {
+        res.writeHead(response.status);
+        res.end();
+        return;
+      }
+
+      const image = Buffer.from(await response.arrayBuffer());
+
+      res.writeHead(200, {
+        'Content-Type':'image/webp',
+        'Content-Length':image.length,
+        'Cache-Control':'no-store',
+      });
+
+      res.end(image);
+
+    } catch {
+      res.writeHead(502);
+      res.end();
+    }
+
+    return;
+  }
+
+  if (
+    req.method === 'GET' &&
+    url.pathname === '/api/ai/fallback/thumbnail.webp'
+  ) {
+    const reviewId =
+      url.searchParams.get('review');
+
+    if (!reviewId) {
+      res.writeHead(400);
+      res.end('review ontbreekt');
+      return;
+    }
+
+    const safe =
+      String(reviewId)
+        .replace(
+          /[^A-Za-z0-9_.-]/g,
+          '_'
+        );
+
+    const file =
+      path.join(
+        config.dataDir,
+        'frigate-genai-fallback-thumbs',
+        `${safe}.jpg`
+      );
+
+    try {
+      const image =
+        fs.readFileSync(file);
+
+      res.writeHead(200, {
+        'Content-Type':'image/jpeg',
+        'Cache-Control':'private, max-age=3600'
+      });
+
+      res.end(image);
+
+    } catch {
+      res.writeHead(404);
+      res.end('thumbnail niet gevonden');
+    }
+
+    return;
+  }
+
+  if (
+    req.method === 'GET' &&
+    url.pathname === '/api/ai/local-car/thumbnail.jpg'
+  ) {
+    const eventId =
+      url.searchParams.get('event');
+
+    const safe =
+      String(eventId || '')
+        .replace(
+          /[^A-Za-z0-9_.-]/g,
+          '_'
+        );
+
+    if (!safe) {
+      res.writeHead(400);
+      res.end('event ontbreekt');
+      return;
+    }
+
+    const file =
+      path.join(
+        config.dataDir,
+        'local-car-thumbs',
+        `${safe}.jpg`
+      );
+
+    try {
+      const data =
+        fs.readFileSync(file);
+
+      res.writeHead(200, {
+        'Content-Type':'image/jpeg',
+        'Cache-Control':'private, max-age=3600'
+      });
+
+      res.end(data);
+
+    } catch {
+      res.writeHead(404);
+      res.end('thumbnail niet gevonden');
+    }
+
+    return;
+  }
+
+
+  if (
+    req.method === 'GET' &&
+    url.pathname === '/api/ai/local-car/clip.mp4'
+  ) {
+    const eventId =
+      url.searchParams.get('event');
+
+    if (!eventId) {
+      res.writeHead(400);
+      res.end('event ontbreekt');
+      return;
+    }
+
+    try {
+      const response =
+        await fetch(
+          FRIGATE +
+          '/api/events/' +
+          encodeURIComponent(eventId) +
+          '/clip.mp4'
+        );
+
+      if (!response.ok) {
+        res.writeHead(response.status);
+        res.end('clip niet beschikbaar');
+        return;
+      }
+
+      const data =
+        Buffer.from(
+          await response.arrayBuffer()
+        );
+
+      res.writeHead(200, {
+        'Content-Type':'video/mp4',
+        'Content-Length':data.length,
+        'Cache-Control':'no-store'
+      });
+
+      res.end(data);
+
+    } catch {
+      res.writeHead(502);
+      res.end('Frigate clip niet bereikbaar');
+    }
+
+    return;
+  }
+
+
+  if (req.method === 'GET' && url.pathname === '/api/ai/history') {
+    const requested =
+      Number(
+        url.searchParams.get('limit') ||
+        60
+      );
+
+    const limit =
+      Math.max(
+        1,
+        Math.min(
+          100,
+          Number.isFinite(requested)
+            ? Math.trunc(requested)
+            : 60
+        )
+      );
+
+    const history =
+      await getCombinedAiHistory(limit);
+
+    res.writeHead(200, {
+      'Content-Type':'application/json; charset=utf-8',
+      'Cache-Control':'no-store'
+    });
+
+    res.end(JSON.stringify({
+      count:history.length,
+      history
+    }));
+
     return;
   }
 
@@ -649,6 +1883,7 @@ const server = http.createServer(async (req,res) => {
     refreshStorage();
     res.writeHead(200,{ 'Content-Type':'application/json' }); res.end('{"ok":true}'); return;
   }
+  if (req.method === 'GET' && url.pathname === '/petfeeder/stream.mjpg') { await proxyPetFeederStream(req,res); return; }
   if (req.method === 'GET' && url.pathname === '/lsc/stream.mjpg') { await proxyLscStream(req,res); return; }
   if (req.method === 'GET' && url.pathname === '/stream.mjpg') { await proxyStream(req,res); return; }
   if (req.method === 'GET' && url.pathname.startsWith('/recordings/')) {
