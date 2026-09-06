@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0f14">
-  <title>Voordeur Security Center</title>
+  <title>Security Center</title>
+  <meta name="description" content="Je camera’s, AI-meldingen en opnames in één lokaal Security Center.">
   <style>
     :root{color-scheme:dark;--bg:#090d12;--panel:#111720;--panel2:#151c26;--line:#26303d;--soft:#1d2632;--text:#f5f7fb;--muted:#8f9bad;--muted2:#667487;--good:#58d68d;--goodbg:#142a20;--warn:#f4c35d;--warnbg:#302817;--danger:#ff7385;--dangerbg:#341a20;--shadow:0 20px 70px rgba(0,0,0,.28);--radius:20px}
     *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-height:100vh;background:radial-gradient(circle at 15% -10%,rgba(75,125,205,.16),transparent 32%),radial-gradient(circle at 100% 0,rgba(61,116,90,.10),transparent 28%),var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -1324,72 +1325,123 @@
 
 </style>
 
+<style id="security-center-layout">
+  [hidden]{display:none!important}
+  body{font-size:1rem;line-height:1.5}
+  h1{font-size:clamp(1.75rem,3vw,2.25rem);line-height:1.2;letter-spacing:-.035em}
+  h2{font-size:1.375rem;line-height:1.3}
+  .shell{max-width:1440px;padding:24px}
+  .topbar{margin:-24px -24px 22px;padding:16px 24px}
+  .brand-title{font-size:1.25rem}
+  .top-scope{font-size:.875rem;color:var(--muted)}
+  .brand-sub{font-size:.8125rem}
+  .nav{gap:6px;padding:6px;background:#0d141d;border:1px solid var(--line);border-radius:16px}
+  .nav a{border:0;background:transparent;border-radius:10px;padding:10px 16px;font-size:.9375rem}
+  .nav a:hover{background:#1b2736;color:#fff}
+  .nav a[aria-current="page"]{background:#24486b;color:#f6fbff;box-shadow:inset 0 0 0 1px #386186}
+  .view-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:28px 0 22px;flex-wrap:wrap}
+  .app-view>.section:first-child{margin-top:28px}
+  .section-head{align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+  .section-head p,.hero-desc,.live-note,.ai-summary,.pf-ai-summary{font-size:1rem;line-height:1.6}
+  .section-head p{max-width:800px}
+  .metrics{gap:12px;margin-bottom:28px}
+  .metric{padding:18px;background:#111b27;border-radius:16px}
+  .metric-label{font-size:.875rem;letter-spacing:0;text-transform:none}
+  .metric-value{font-size:1.75rem}
+  .metric-sub{font-size:.8125rem;white-space:normal;overflow-wrap:anywhere}
+  .camera-overview-card,.ai-history-item{box-shadow:none}
+  .camera-overview-title{font-size:1.0625rem}
+  .camera-overview-sub,.camera-overview-ai-label,.camera-overview-meta{font-size:.8125rem}
+  .camera-overview-ai-title,.camera-overview-link,.camera-overview-state{font-size:.875rem}
+  .camera-overview-link{padding:9px 0}
+  .camera-overview-ai-title{overflow-wrap:anywhere}
+  #recentAi{margin-top:28px}
+  #recentAiList .ai-history-item{grid-template-columns:96px minmax(0,1fr) auto;gap:16px;padding:14px 16px}
+  #recentAiList .ai-history-thumb{width:96px;min-width:0;height:72px;aspect-ratio:4/3}
+  #recentAiList .ai-history-thumb img{height:100%;object-fit:cover}
+  #recentAiList .ai-history-source{display:none}
+  #recentAiList .ai-history-summary{display:none}
+  .ai-history-title{font-size:1rem;overflow-wrap:anywhere}
+  .ai-history-summary{font-size:.9375rem;overflow-wrap:anywhere}
+  .ai-history-meta,.ai-history-threat,.ai-history-count,.ai-history-source{font-size:.8125rem}
+  .ai-history-filter,.ai-history-open{font-size:.875rem;min-height:42px;padding:9px 13px}
+  .ai-history-thumb-empty,.ai-history-empty{font-size:.9375rem}
+  .history-searchbar{display:flex;align-items:end;flex-wrap:wrap;gap:12px;margin:22px 0 10px}
+  .history-searchbar label{display:grid;gap:6px;font-size:.875rem;color:#b7c7d9}
+  .history-searchbar label:first-child{flex:1;min-width:230px}
+  .history-searchbar input,.history-searchbar select{min-height:44px;width:100%;font-size:1rem}
+  .history-note{font-size:.875rem;color:var(--muted);margin:10px 0 16px}
+  .history-pagination{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:16px;padding:22px 0 4px}
+  .history-pagination span{font-size:.875rem;color:#c2cfe0}
+  .camera-analyses{padding:4px 16px 16px}
+  .camera-analyses summary{font-size:1rem!important;padding-left:0!important}
+  .hero{grid-template-columns:1fr}
+  .hero-main{padding:20px;min-height:0;gap:16px}
+  .eyebrow{font-size:.8125rem}
+  .eyebrow-dot{display:none}
+  .health-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .hero-side{margin:16px 0}
+  .health-label,.health-value,.camera-head strong,.camera-head span,.badge,.storage-title,.system-card b{font-size:.875rem}
+  .health-value{white-space:normal;overflow-wrap:anywhere}
+  .live-side-title{font-size:1rem}
+  .ai-scene,.ai-meta span,.pf-ai-scene,.pf-ai-meta span{font-size:.875rem}
+  .storage-sub,.storage-stat span,.system-card span,.technical-item span,.recording-details,.day-count{font-size:.8125rem}
+  .storage-stat b,.technical-item b,.recording-time,.recording-count,.day-title,.text-btn{font-size:.875rem}
+  .archive-links{margin:0 0 16px}
+  .app-version{color:var(--muted);font-size:.875rem;margin-top:24px}
+  .app-version a{color:#9dc8f1}
+  #error{margin:0 0 18px;font-size:.9375rem}
+  .skip-link{position:fixed;top:-100px;left:16px;z-index:200;padding:12px 18px;background:#f5f7fb;color:#10141a;border-radius:10px}
+  .skip-link:focus{top:12px}
+  :focus-visible{outline:3px solid #8cc8ff;outline-offset:4px}
+  @media(max-width:1050px){.health-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media(max-width:720px){
+    .shell{padding:14px}.topbar{margin:-14px -14px 16px;padding:12px 14px;position:static;align-items:flex-start;flex-wrap:wrap}
+    .top-actions{justify-content:flex-start}.nav a{padding:10px 12px}
+    .view-heading{margin-top:22px}.section-head{align-items:flex-start}
+    #recentAiList .ai-history-item{grid-template-columns:72px minmax(0,1fr);gap:12px;padding:12px}
+    #recentAiList .ai-history-thumb{width:72px;height:64px}
+    #recentAiList .ai-history-actions{grid-column:1/-1}
+    #recentAiList .ai-history-actions button{width:100%}
+    .health-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .history-searchbar label{flex:1;min-width:100%}.history-searchbar button{width:100%}
+    .history-pagination{gap:10px}.history-pagination .btn{white-space:normal}
+    .camera-analyses{padding:4px 12px 12px}
+  }
+  @media(max-width:400px){.health-grid,.metrics{grid-template-columns:1fr}.brand-title{font-size:1.125rem}}
+  @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{transition:none!important}}
+</style>
 </head>
 <body>
+<a class="skip-link" href="#mainContent">Naar inhoud</a>
 <div class="shell">
   <header class="topbar">
-    <div class="brand"><div class="brand-icon">⌂</div><div><div class="brand-title">Voordeur Security</div><div class="brand-sub">Eufy Dual · HomeBase archief · lokale opslag</div></div></div>
-    <div class="top-actions"><span id="topBattery" class="badge battery-top">🔋 Accu…</span><span id="topHomebase" class="badge">HomeBase…</span><span id="badge" class="badge main">Verbinden…</span></div>
+    <div class="brand"><div class="brand-icon">⌂</div><div><div class="brand-title">Security Center</div><div class="brand-sub">Voordeur · Parkeerplaats · Pet Feeder</div></div></div>
+    <div class="top-actions"><span class="top-scope">Deurbel</span><span id="topBattery" class="badge battery-top">🔋 Accu…</span><span id="topHomebase" class="badge">HomeBase…</span><span id="badge" aria-label="Status Eufy-deurbel" class="badge main">Verbinden…</span></div>
   </header>
 
-  <nav class="nav"><a href="#overview">Overzicht</a><a href="#live">Livebeeld</a><a href="#ai">AI</a><a href="#aiHistory">AI Geschiedenis</a><a href="#eufyAi">Eufy AI</a><a href="#petfeeder">Pet Feeder</a><a href="#storage">Opslag</a><a href="#recordingsSection">Opnames</a><a href="#system">Systeem</a></nav>
+  <nav class="nav" aria-label="Hoofdnavigatie">
+    <a href="#overview" data-nav="overview" aria-current="page">Overzicht</a>
+    <a href="#cameras" data-nav="cameras">Camera’s</a>
+    <a href="#aiHistory" data-nav="alerts">AI-meldingen</a>
+    <a href="#recordingsSection" data-nav="recordings">Opnames</a>
+    <a href="#system" data-nav="system">Systeem en opslag</a>
+  </nav>
 
-  <main>
-    <section id="overview" class="hero section">
-      <article class="card hero-main">
-        <div><div class="eyebrow"><span class="eyebrow-dot"></span><span id="heroMode">Beveiliging controleren</span></div><h1 id="securityTitle">Voordeur beveiliging</h1><p id="securitySub" class="hero-desc">Status wordt geladen…</p></div>
-        <div class="controls"><button id="security" class="btn green">🛡 Beveiliging inschakelen</button><button id="start" class="btn primary">▶ Live bekijken</button><button id="stop" class="btn dark" disabled>■ Stop live</button><button id="testTrigger" class="btn amber">⚡ Test live-trigger</button></div>
-      </article>
-      <aside class="card hero-side">
-        <div class="eyebrow">Systeemgezondheid</div>
-        <div class="health-grid">
-          <div class="health"><div class="health-label">HomeBase</div><div id="healthHomebase" class="health-value">Controleren…</div></div>
-          <div class="health"><div class="health-label">Deurbel accu</div><div id="healthBattery" class="health-value">Controleren…</div></div>
-          <div class="health"><div class="health-label">Opnameschijf</div><div id="healthStorage" class="health-value">Controleren…</div></div>
-          <div class="health"><div class="health-label">Eufy verbinding</div><div id="healthEufy" class="health-value">Controleren…</div></div>
-          <div class="health"><div class="health-label">Camera</div><div id="healthCamera" class="health-value">Controleren…</div></div>
-        </div>
-      </aside>
-    </section>
+  <main id="mainContent" tabindex="-1">
+    <div id="error" class="alert" role="alert"></div>
+<div id="view-overview" class="app-view" data-view="overview">
+<div class="view-heading"><h1 id="overviewHeading">Overzicht</h1><a class="btn primary" href="#cameras">Camera’s bekijken →</a></div>
 
-    <section class="metrics">
-      <article class="metric"><div class="metric-top"><span class="metric-label">Vandaag</span><span>◉</span></div><div id="metricToday" class="metric-value">0</div><div class="metric-sub">opnames vandaag</div></article>
-      <article class="metric"><div class="metric-top"><span class="metric-label">Totaal</span><span>▤</span></div><div id="metricTotal" class="metric-value">0</div><div id="metricTotalSub" class="metric-sub">0 B opgeslagen</div></article>
+<section class="metrics">
+      <article class="metric"><div class="metric-top"><span class="metric-label">Deurbel vandaag</span><span>◉</span></div><div id="metricToday" class="metric-value">0</div><div class="metric-sub">opnames vandaag</div></article>
+      <article class="metric"><div class="metric-top"><span class="metric-label">Deurbelarchief</span><span>▤</span></div><div id="metricTotal" class="metric-value">0</div><div id="metricTotalSub" class="metric-sub">0 B opgeslagen</div></article>
       <article class="metric"><div class="metric-top"><span class="metric-label">Deurbel accu</span><span>🔋</span></div><div id="metricBattery" class="metric-value">-</div><div id="metricBatterySub" class="metric-sub">Accu uitlezen…</div><div id="batteryMeter" class="battery-meter"><div id="batteryFill"></div></div></article>
       <article class="metric"><div class="metric-top"><span class="metric-label">Vrije ruimte</span><span>◫</span></div><div id="metricFree" class="metric-value">-</div><div id="metricDiskSub" class="metric-sub">HDD controleren…</div></article>
       <article class="metric"><div class="metric-top"><span class="metric-label">Laatste import</span><span>↧</span></div><div id="metricImport" class="metric-value">-</div><div id="metricImportSub" class="metric-sub">Nog geen status</div></article>
     </section>
 
-    <section id="live" class="section">
-      <div class="section-head"><div><h2>Livebeeld</h2><p>De Eufy-deurbel start alleen handmatig; de netgevoede LSC-camera is direct beschikbaar zolang dit dashboard open staat.</p></div><span id="liveBadge" class="badge">Camera slaapt</span></div>
-      <div class="live-layout">
-        <div class="camera-grid">
-          <article class="camera-card"><div class="camera-head"><strong>Hoofdcamera</strong><span>Bovenste lens · 4:3</span></div><div class="camera-view top"><img id="topStream" class="crop-source" alt="Livebeeld hoofdcamera"><div class="placeholder dual-placeholder"><div><div class="placeholder-icon">◉</div><strong>Camera slaapt</strong>Livebeeld blijft uit om batterij te besparen.</div></div></div></article>
-          <article class="camera-card"><div class="camera-head"><strong>Pakketcamera</strong><span>Onderste lens · 16:9</span></div><div class="camera-view bottom"><img id="bottomStream" class="crop-source" alt="Livebeeld pakketcamera"><div class="placeholder dual-placeholder"><div><div class="placeholder-icon">▣</div><strong>Camera slaapt</strong>De HomeBase bewaart beweging zelfstandig.</div></div></div></article>
-          <article class="camera-card lsc-card">
-            <div class="camera-head">
-              <strong>LSC Smart Connect</strong>
-              <span id="lscStatus">Netgevoed · verbinden…</span>
-            </div>
-            <div class="camera-view lsc">
-              <img id="lscStream" class="lsc-source" src="/lsc/stream.mjpg" alt="Livebeeld LSC Smart Connect">
-              <div id="lscPlaceholder" class="placeholder">
-                <div>
-                  <div class="placeholder-icon">◉</div>
-                  <strong>LSC-camera verbinden…</strong>
-                  Lokale 1080p-stream via Tuya RTSP Bridge.
-                </div>
-              </div>
-            </div>
-          </article>
-        </div>
-        <aside class="live-side"><div><div class="live-side-title">Zuinige modus</div><p class="live-note">Bewegingsopnames worden door de HomeBase gemaakt en automatisch naar de aparte HDD gekopieerd. Accu-uitlezing gebruikt alleen device-properties en start geen livestream.</p></div><div class="action-stack"><button id="sideStart" class="btn primary">▶ Live bekijken</button><button id="sideStop" class="btn dark" disabled>■ Live stoppen</button></div></aside>
-      </div>
-      <div id="error" class="alert"></div>
-    </section>
-
-
-    <section id="cameraOverview" class="section">
+<section id="cameraOverview" class="section">
 
       <div class="section-head">
         <div>
@@ -1415,7 +1467,7 @@
                 </div>
 
                 <div class="camera-overview-sub">
-                  HomeBase · bewegingsopnames
+                  Voordeur · hoofd- en pakketcamera
                 </div>
               </div>
             </div>
@@ -1452,7 +1504,7 @@
 
             <a
               class="camera-overview-link"
-              href="#eufyAi"
+              href="#eufyControls"
             >
               Bekijken →
             </a>
@@ -1474,7 +1526,7 @@
                 </div>
 
                 <div class="camera-overview-sub">
-                  Frigate · OpenVINO · Gemini
+                  Parkeerplaats · aankomst en vertrek
                 </div>
               </div>
             </div>
@@ -1511,7 +1563,7 @@
 
             <a
               class="camera-overview-link"
-              href="#ai"
+              href="#live"
             >
               Bekijken →
             </a>
@@ -1533,7 +1585,7 @@
                 </div>
 
                 <div class="camera-overview-sub">
-                  Katdetectie · voerbak AI
+                  Voerbak · katdetectie
                 </div>
               </div>
             </div>
@@ -1582,213 +1634,51 @@
 
     </section>
 
+<section id="recentAi" class="section">
+  <div class="section-head"><div><h2>Laatste meldingen</h2><p>De vijf meest recente gebeurtenissen van je camera’s.</p></div><a class="btn dark" href="#aiHistory">Alle meldingen →</a></div>
+  <p id="recentAiStatus" class="history-note" role="status">Meldingen laden…</p>
+  <div id="recentAiList" class="ai-history-list"><div class="ai-history-empty">Meldingen laden…</div></div>
+</section>
+</div><div id="view-cameras" class="app-view" data-view="cameras" hidden>
+<div class="view-heading"><h1>Camera’s</h1><a class="btn dark" href="#aiHistory">AI-meldingen →</a></div>
 
-    <section id="aiHistory" class="section">
-
-      <div class="section-head">
-        <div>
-          <h2>AI Geschiedenis</h2>
-          <p>
-            Chronologisch overzicht van AI-gebeurtenissen
-            van Eufy, LSC en Pet Feeder.
-          </p>
-        </div>
-
-        <span
-          id="aiHistoryStatus"
-          class="badge"
-        >
-          Laden…
-        </span>
-      </div>
-
-
-      <div class="ai-history-toolbar">
-
-        <div class="ai-history-filters">
-
-          <button
-            type="button"
-            class="ai-history-filter active"
-            data-source="all"
-          >
-            Alles
-          </button>
-
-          <button
-            type="button"
-            class="ai-history-filter"
-            data-source="eufy"
-          >
-            🚪 Eufy
-          </button>
-
-          <button
-            type="button"
-            class="ai-history-filter"
-            data-source="lsc"
-          >
-            🏠 LSC
-          </button>
-
-          <button
-            type="button"
-            class="ai-history-filter"
-            data-source="petfeeder"
-          >
-            🐾 Pet Feeder
-          </button>
-
-        </div>
-
-        <div
-          id="aiHistoryCount"
-          class="ai-history-count"
-        >
-          -
-        </div>
-
-      </div>
-
-
-      <div
-        id="aiHistoryList"
-        class="ai-history-list"
-      >
-        <div class="ai-history-empty">
-          AI-geschiedenis laden…
-        </div>
-      </div>
-
-    </section>
-
-    <section id="ai" class="section">
-      <div class="section-head">
-        <div>
-          <h2>LSC AI</h2>
-          <p>Lokale objectdetectie via Frigate, met Nederlandse gebeurtenisbeschrijving door Gemini.</p>
-        </div>
-        <span id="aiStatus" class="badge">AI laden…</span>
-      </div>
-
-      <article class="panel ai-panel">
-        <div class="ai-main">
-
-          <div class="ai-visual">
-            <img id="aiThumbnail" class="ai-thumb" alt="AI gebeurtenis LSC-camera">
-            <div id="aiThumbPlaceholder" class="ai-thumb-placeholder">
-              AI-thumbnail laden…
-            </div>
-            <span class="ai-thumb-badge">✦ Gemini gebeurtenis</span>
-          </div>
-
-          <div class="ai-info">
-
-            <div class="ai-top">
-              <div class="ai-icon">✦</div>
-              <div class="ai-content">
-                <div id="aiTitle" class="ai-title">Laatste gebeurtenis laden…</div>
-                <div id="aiSummary" class="ai-summary">Frigate wordt gecontroleerd.</div>
-              </div>
-            </div>
-
-            <div id="aiScene" class="ai-scene">
-              Nog geen scènebeschrijving geladen.
-            </div>
-
-            <div class="ai-meta">
-              <span id="aiTime">Tijd: -</span>
-              <span id="aiConfidence">Zekerheid: -</span>
-              <span id="aiThreat">Dreiging: -</span>
-              <span id="aiObjects">Objecten: -</span>
-            </div>
-
-            <div class="ai-actions">
-              <button id="aiRefresh" class="btn dark">↻ AI vernieuwen</button>
-              <a id="aiFrigateLink" class="btn dark" href="#" target="_blank" rel="noopener">
-                ▶ Bekijk AI-opname
-              </a>
-            </div>
-
-          </div>
-        </div>
+<section id="eufyControls" class="hero section">
+      <article class="card hero-main">
+        <div><div class="eyebrow"><span class="eyebrow-dot"></span><span id="heroMode">Beveiliging controleren</span></div><h2 id="securityTitle">Eufy-deurbel</h2><p id="securitySub" class="hero-desc">Status wordt geladen…</p></div>
+        <div class="controls"><button id="security" class="btn green">🛡 Deurbel bewaken</button><button id="start" class="btn primary">▶ Deurbel live</button><button id="stop" class="btn dark" disabled>■ Deurbel stoppen</button><button id="testTrigger" class="btn amber">⚡ Test live-trigger</button></div>
       </article>
+
     </section>
 
-    <section id="eufyAi" class="section">
-      <div class="section-head">
-        <div>
-          <h2>Eufy Voordeur AI</h2>
-          <p>Gemini analyseert automatisch de bewegingsopnames die door de HomeBase zijn opgeslagen.</p>
-        </div>
-        <span id="eufyAiStatus" class="badge">AI laden…</span>
-      </div>
-
-      <article class="panel ai-panel">
-        <div class="ai-main">
-
-          <div class="ai-visual">
-            <img
-              id="eufyAiThumbnail"
-              class="ai-thumb"
-              alt="Eufy AI gebeurtenis"
-              style="display:none"
-            >
-
-            <div
-              id="eufyAiThumbPlaceholder"
-              class="ai-thumb-placeholder"
-            >
-              Eufy-thumbnail laden…
+<section id="live" class="section">
+      <div class="section-head"><div><h2>Deurbel en parkeerplaats</h2><p>De deurbel start je handmatig. De LSC-camera laadt wanneer je deze weergave opent.</p></div><span id="liveBadge" class="badge">Camera slaapt</span></div>
+      <div class="live-layout">
+        <div class="camera-grid">
+          <article class="camera-card"><div class="camera-head"><strong>Hoofdcamera</strong><span>Bovenste lens · 4:3</span></div><div class="camera-view top"><img id="topStream" class="crop-source" alt="Livebeeld hoofdcamera"><div class="placeholder dual-placeholder"><div><div class="placeholder-icon">◉</div><strong>Camera slaapt</strong>Livebeeld blijft uit om batterij te besparen.</div></div></div></article>
+          <article class="camera-card"><div class="camera-head"><strong>Pakketcamera</strong><span>Onderste lens · 16:9</span></div><div class="camera-view bottom"><img id="bottomStream" class="crop-source" alt="Livebeeld pakketcamera"><div class="placeholder dual-placeholder"><div><div class="placeholder-icon">▣</div><strong>Camera slaapt</strong>De HomeBase bewaart beweging zelfstandig.</div></div></div></article>
+          <article class="camera-card lsc-card">
+            <div class="camera-head">
+              <strong>LSC Smart Connect</strong>
+              <span id="lscStatus">Netgevoed · verbinden…</span>
             </div>
-
-            <span class="ai-thumb-badge">✦ HomeBase + Gemini</span>
-          </div>
-
-          <div class="ai-info">
-
-            <div class="ai-top">
-              <div class="ai-icon">⌂</div>
-
-              <div class="ai-content">
-                <div id="eufyAiTitle" class="ai-title">
-                  Laatste voordeurgebeurtenis laden…
-                </div>
-
-                <div id="eufyAiSummary" class="ai-summary">
-                  HomeBase AI wordt gecontroleerd.
+            <div class="camera-view lsc">
+              <img id="lscStream" class="lsc-source" alt="Livebeeld LSC Smart Connect">
+              <div id="lscPlaceholder" class="placeholder">
+                <div>
+                  <div class="placeholder-icon">◉</div>
+                  <strong>LSC-camera verbinden…</strong>
+                  Lokale 1080p-stream via Tuya RTSP Bridge.
                 </div>
               </div>
             </div>
-
-            <div id="eufyAiScene" class="ai-scene">
-              Nog geen scènebeschrijving geladen.
-            </div>
-
-            <div class="ai-meta">
-              <span id="eufyAiTime">Tijd: -</span>
-              <span id="eufyAiConfidence">Zekerheid: -</span>
-              <span id="eufyAiThreat">Dreiging: -</span>
-              <span id="eufyAiFrames">AI-beelden: -</span>
-            </div>
-
-            <div class="ai-actions">
-              <button id="eufyAiRefresh" class="btn dark">
-                ↻ AI vernieuwen
-              </button>
-
-              <button id="eufyAiVideo" class="btn dark" disabled>
-                ▶ Bekijk opname
-              </button>
-            </div>
-
-          </div>
+          </article>
         </div>
-      </article>
+        <aside class="live-side"><div><div class="live-side-title">Zuinige modus</div><p class="live-note">Bewegingsopnames worden door de HomeBase gemaakt en automatisch naar de aparte HDD gekopieerd. Accu-uitlezing gebruikt alleen device-properties en start geen livestream.</p></div><div class="action-stack"><button id="sideStart" class="btn primary">▶ Deurbel live</button><button id="sideStop" class="btn dark" disabled>■ Deurbel stoppen</button></div></aside>
+      </div>
+
     </section>
 
-
-    <section id="petfeeder" class="section">
+<section id="petfeeder" class="section">
 
       <div class="section-head">
         <div>
@@ -1808,7 +1698,7 @@
 
         <article class="panel pf-panel pf-live-panel">
 
-          
+
 
           <div class="pf-live-frame">
             <div class="pf-live-badges">
@@ -1823,7 +1713,7 @@
 
             <span class="pf-live-label">● Pet Feeder</span>
             <span id="pfFpsOverlay" class="pf-fps-overlay">-- FPS</span>
-            
+
           </div>
 
         </article>
@@ -1918,20 +1808,224 @@
       </div>
 
     </section>
+</div><div id="view-alerts" class="app-view" data-view="alerts" hidden>
+<section id="aiHistory" class="section">
 
-    <section id="storage" class="section">
-      <div class="section-head"><div><h2>Opslag</h2><p>De recorder stopt veilig als de verwachte grote HDD niet beschikbaar is.</p></div><span id="diskStatus" class="badge">Controleren…</span></div>
-      <article class="panel storage">
-        <div class="storage-header"><div class="storage-title-wrap"><div class="storage-icon">▰</div><div><div id="diskLabel" class="storage-title">Opnameschijf</div><div id="diskSub" class="storage-sub">Opslag controleren…</div></div></div><span id="retention" class="badge">14 dagen bewaren</span></div>
-        <div class="storage-bar"><div id="diskBar"></div></div>
-        <div class="storage-grid"><div class="storage-stat"><span>Totale capaciteit</span><b id="diskTotal">-</b></div><div class="storage-stat"><span>Vrij</span><b id="diskFree">-</b></div><div class="storage-stat"><span>Schijf gebruikt</span><b id="diskUsed">-</b></div><div class="storage-stat"><span>Deurbelopnames</span><b id="recordingsUsed">-</b></div></div>
-        <div class="retention-row"><label for="retentionSelect"><strong>Automatische bewaartermijn</strong><br><span class="storage-sub">Video en thumbnail worden samen verwijderd.</span></label><select id="retentionSelect"><option value="7">7 dagen</option><option value="14">14 dagen</option><option value="30">30 dagen</option><option value="60">60 dagen</option><option value="90">90 dagen</option><option value="180">180 dagen</option><option value="365">1 jaar</option><option value="0">Onbeperkt</option></select></div>
+      <div class="section-head">
+        <div>
+          <h1>AI-meldingen</h1>
+          <p>
+            Eufy, parkeerplaats en Pet Feeder, inclusief lokale aankomst- en vertrekmeldingen.
+          </p>
+        </div>
+
+        <span
+          id="aiHistoryStatus"
+          class="badge"
+        >
+          Laden…
+        </span>
+      </div>
+
+
+      <div class="history-searchbar">
+        <label>Zoeken<input id="aiHistorySearch" type="search" placeholder="Zoek een melding…"></label>
+        <label>Periode<select id="aiHistoryPeriod"><option value="all">Alle geladen meldingen</option><option value="today">Vandaag</option><option value="yesterday">Gisteren</option><option value="week">Laatste 7 dagen</option></select></label>
+        <button id="aiHistoryRefresh" type="button" class="btn dark">Vernieuwen</button>
+      </div>
+      <p id="aiHistoryLoadNote" class="history-note">Maximaal de 100 meest recente meldingen. Filters zoeken binnen deze selectie.</p>
+      <div class="ai-history-toolbar">
+
+        <div class="ai-history-filters">
+
+          <button
+            type="button"
+            class="ai-history-filter active" aria-pressed="true"
+            data-source="all"
+          >
+            Alles
+          </button>
+
+          <button
+            type="button"
+            class="ai-history-filter" aria-pressed="false"
+            data-source="eufy"
+          >
+            🚪 Eufy
+          </button>
+
+          <button
+            type="button"
+            class="ai-history-filter" aria-pressed="false"
+            data-source="lsc"
+          >
+            🏠 LSC
+          </button>
+
+          <button
+            type="button"
+            class="ai-history-filter" aria-pressed="false"
+            data-source="petfeeder"
+          >
+            🐾 Pet Feeder
+          </button>
+
+          <button type="button" class="ai-history-filter" aria-pressed="false" data-source="localcar">🚗 Alleen lokaal</button>
+        </div>
+
+        <div
+          id="aiHistoryCount"
+          class="ai-history-count" role="status" aria-live="polite"
+        >
+          -
+        </div>
+
+      </div>
+
+
+      <div
+        id="aiHistoryList"
+        class="ai-history-list"
+      >
+        <div class="ai-history-empty">
+          AI-geschiedenis laden…
+        </div>
+      </div>
+
+      <div class="history-pagination" aria-label="Pagina's met AI-meldingen">
+        <button id="aiHistoryPrev" type="button" class="btn dark" disabled>← Vorige</button>
+        <span id="aiHistoryPage" role="status" aria-live="polite">Pagina 1 van 1</span>
+        <button id="aiHistoryNext" type="button" class="btn dark" disabled>Volgende →</button>
+      </div>
+    </section><details id="latestAnalyses" class="technical camera-analyses"><summary>Laatste uitgebreide analyse per camera</summary><section id="ai" class="section">
+      <div class="section-head">
+        <div>
+          <h2>LSC AI</h2>
+          <p>Lokale objectdetectie via Frigate, met Nederlandse gebeurtenisbeschrijving door Gemini.</p>
+        </div>
+        <span id="aiStatus" class="badge">AI laden…</span>
+      </div>
+
+      <article class="panel ai-panel">
+        <div class="ai-main">
+
+          <div class="ai-visual">
+            <img id="aiThumbnail" class="ai-thumb" alt="AI gebeurtenis LSC-camera">
+            <div id="aiThumbPlaceholder" class="ai-thumb-placeholder">
+              AI-thumbnail laden…
+            </div>
+            <span class="ai-thumb-badge">✦ Gemini gebeurtenis</span>
+          </div>
+
+          <div class="ai-info">
+
+            <div class="ai-top">
+              <div class="ai-icon">✦</div>
+              <div class="ai-content">
+                <div id="aiTitle" class="ai-title">Laatste gebeurtenis laden…</div>
+                <div id="aiSummary" class="ai-summary">Frigate wordt gecontroleerd.</div>
+              </div>
+            </div>
+
+            <div id="aiScene" class="ai-scene">
+              Nog geen scènebeschrijving geladen.
+            </div>
+
+            <div class="ai-meta">
+              <span id="aiTime">Tijd: -</span>
+              <span id="aiConfidence">Zekerheid: -</span>
+              <span id="aiThreat">Dreiging: -</span>
+              <span id="aiObjects">Objecten: -</span>
+            </div>
+
+            <div class="ai-actions">
+              <button id="aiRefresh" class="btn dark">↻ AI vernieuwen</button>
+              <a id="aiFrigateLink" class="btn dark" href="#" target="_blank" rel="noopener">
+                ▶ Bekijk AI-opname
+              </a>
+            </div>
+
+          </div>
+        </div>
       </article>
     </section>
 
-    <section id="recordingsSection" class="section">
-      <div class="section-head"><div><h2>Opnames</h2><p>Standaard worden alleen vandaag en gisteren getoond. Oudere opnames vind je via de datumkeuze.</p></div><span id="recordingHeaderCount" class="badge">Laden…</span></div>
-      <article class="panel recordings-panel">
+<section id="eufyAi" class="section">
+      <div class="section-head">
+        <div>
+          <h2>Eufy Voordeur AI</h2>
+          <p>Gemini analyseert automatisch de bewegingsopnames die door de HomeBase zijn opgeslagen.</p>
+        </div>
+        <span id="eufyAiStatus" class="badge">AI laden…</span>
+      </div>
+
+      <article class="panel ai-panel">
+        <div class="ai-main">
+
+          <div class="ai-visual">
+            <img
+              id="eufyAiThumbnail"
+              class="ai-thumb"
+              alt="Eufy AI gebeurtenis"
+              style="display:none"
+            >
+
+            <div
+              id="eufyAiThumbPlaceholder"
+              class="ai-thumb-placeholder"
+            >
+              Eufy-thumbnail laden…
+            </div>
+
+            <span class="ai-thumb-badge">✦ HomeBase + Gemini</span>
+          </div>
+
+          <div class="ai-info">
+
+            <div class="ai-top">
+              <div class="ai-icon">⌂</div>
+
+              <div class="ai-content">
+                <div id="eufyAiTitle" class="ai-title">
+                  Laatste voordeurgebeurtenis laden…
+                </div>
+
+                <div id="eufyAiSummary" class="ai-summary">
+                  HomeBase AI wordt gecontroleerd.
+                </div>
+              </div>
+            </div>
+
+            <div id="eufyAiScene" class="ai-scene">
+              Nog geen scènebeschrijving geladen.
+            </div>
+
+            <div class="ai-meta">
+              <span id="eufyAiTime">Tijd: -</span>
+              <span id="eufyAiConfidence">Zekerheid: -</span>
+              <span id="eufyAiThreat">Dreiging: -</span>
+              <span id="eufyAiFrames">AI-beelden: -</span>
+            </div>
+
+            <div class="ai-actions">
+              <button id="eufyAiRefresh" class="btn dark">
+                ↻ AI vernieuwen
+              </button>
+
+              <button id="eufyAiVideo" class="btn dark" disabled>
+                ▶ Bekijk opname
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </article>
+    </section></details>
+</div><div id="view-recordings" class="app-view" data-view="recordings" hidden>
+<section id="recordingsSection" class="section">
+      <div class="section-head"><div><h1>Opnames</h1><p>Deurbelopnames van vandaag en gisteren. Kies een datum voor oudere opnames.</p></div><span id="recordingHeaderCount" class="badge">Laden…</span></div>
+      <div class="archive-links"><a id="frigateArchiveLink" class="btn dark" href="#" target="_blank" rel="noopener">LSC- en Pet Feeder-opnames openen ↗</a></div>
+<article class="panel recordings-panel">
         <div class="recording-toolbar">
           <div class="filters">
             <input id="searchFilter" type="search" placeholder="Zoek binnen geselecteerde datum…" aria-label="Zoek opnames">
@@ -1944,10 +2038,20 @@
         <div id="recordings"><div class="empty">Opnames laden…</div></div>
       </article>
     </section>
-
-    <section id="system" class="section">
-      <div class="section-head"><div><h2>Systeem</h2><p>Snelle technische status zonder de livecamera wakker te maken.</p></div></div>
-      <div class="system-grid">
+</div><div id="view-system" class="app-view" data-view="system" hidden>
+<section id="system" class="section">
+      <div class="section-head"><div><h1>Systeem en opslag</h1><p>Verbindingen, opslag en bewaartermijn.</p></div></div>
+      <aside class="card hero-side">
+        <div class="eyebrow">Systeemgezondheid</div>
+        <div class="health-grid">
+          <div class="health"><div class="health-label">HomeBase</div><div id="healthHomebase" class="health-value">Controleren…</div></div>
+          <div class="health"><div class="health-label">Deurbel accu</div><div id="healthBattery" class="health-value">Controleren…</div></div>
+          <div class="health"><div class="health-label">Opnameschijf</div><div id="healthStorage" class="health-value">Controleren…</div></div>
+          <div class="health"><div class="health-label">Eufy verbinding</div><div id="healthEufy" class="health-value">Controleren…</div></div>
+          <div class="health"><div class="health-label">Camera</div><div id="healthCamera" class="health-value">Controleren…</div></div>
+        </div>
+      </aside>
+<div class="system-grid">
         <article class="system-card"><span>HomeBase-monitor</span><b id="homebaseStatus">-</b></article>
         <article class="system-card"><span>Deurbel accu</span><b id="batteryStatus">-</b></article>
         <article class="system-card"><span>Laatste HomeBase-check</span><b id="homebaseCheck">-</b></article>
@@ -1960,12 +2064,53 @@
         <div class="technical-item"><span>Laatste live-trigger</span><b id="lastTrigger">-</b></div><div class="technical-item"><span>Live-triggerbron</span><b id="triggerSource">-</b></div><div class="technical-item"><span>Live-opnameduur</span><b id="eventSeconds">-</b></div><div class="technical-item"><span>HomeBase event-count</span><b id="eventCount">-</b></div>
       </div></details>
     </section>
+
+<section id="storage" class="section">
+      <div class="section-head"><div><h2>Opslag</h2><p>De recorder stopt veilig als de verwachte grote HDD niet beschikbaar is.</p></div><span id="diskStatus" class="badge">Controleren…</span></div>
+      <article class="panel storage">
+        <div class="storage-header"><div class="storage-title-wrap"><div class="storage-icon">▰</div><div><div id="diskLabel" class="storage-title">Opnameschijf</div><div id="diskSub" class="storage-sub">Opslag controleren…</div></div></div><span id="retention" class="badge">14 dagen bewaren</span></div>
+        <div class="storage-bar"><div id="diskBar"></div></div>
+        <div class="storage-grid"><div class="storage-stat"><span>Totale capaciteit</span><b id="diskTotal">-</b></div><div class="storage-stat"><span>Vrij</span><b id="diskFree">-</b></div><div class="storage-stat"><span>Schijf gebruikt</span><b id="diskUsed">-</b></div><div class="storage-stat"><span>Deurbelopnames</span><b id="recordingsUsed">-</b></div></div>
+        <div class="retention-row"><label for="retentionSelect"><strong>Automatische bewaartermijn</strong><br><span class="storage-sub">Video en thumbnail worden samen verwijderd.</span></label><select id="retentionSelect"><option value="7">7 dagen</option><option value="14">14 dagen</option><option value="30">30 dagen</option><option value="60">60 dagen</option><option value="90">90 dagen</option><option value="180">180 dagen</option><option value="365">1 jaar</option><option value="0">Onbeperkt</option></select></div>
+      </article>
+    </section><p class="app-version">Security Center · 2026.09.06.1 · <a href="https://github.com/PascalVZ96/deurbel/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Wijzigingen bekijken ↗</a></p>
+</div>
   </main>
 </div>
 
 <div id="videoModal" class="modal" aria-hidden="true"><div class="modal-card" role="dialog" aria-modal="true"><div class="modal-head"><div class="modal-title"><strong id="modalTitle">Opname</strong><span id="modalSubtitle">-</span></div><button id="modalClose" class="modal-close">✕</button></div><video id="modalVideo" class="modal-video" controls playsinline preload="metadata"></video><div class="modal-actions"><a id="modalDownload" class="text-btn" href="#" download>Download MP4</a><button id="modalDelete" class="text-btn delete">Verwijderen</button></div></div></div>
 <div id="toast" class="toast"></div>
 
+<script id="security-center-navigation">
+const securityRoutes={overview:'overview',cameraOverview:'overview',recentAi:'overview',cameras:'cameras',live:'cameras',eufyControls:'cameras',petfeeder:'cameras',aiHistory:'alerts',ai:'alerts',eufyAi:'alerts',recordingsSection:'recordings',storage:'system',system:'system'};
+const securityViewTitles={overview:'Overzicht',cameras:'Camera’s',alerts:'AI-meldingen',recordings:'Opnames',system:'Systeem en opslag'};
+let activeSecurityView='overview';
+function cameraStreamsWanted(){return activeSecurityView==='cameras'&&!document.hidden}
+function selectSecurityView(initial=false){
+  let anchor='overview';
+  try{anchor=decodeURIComponent(location.hash.slice(1))||'overview'}catch{}
+  if(anchor==='mainContent')return;
+  const view=Object.hasOwn(securityRoutes,anchor)?securityRoutes[anchor]:'overview';
+  const changed=view!==activeSecurityView;
+  activeSecurityView=view;
+  document.querySelectorAll('[data-view]').forEach(panel=>{panel.hidden=panel.dataset.view!==view});
+  document.querySelectorAll('[data-nav]').forEach(link=>{
+    if(link.dataset.nav===view)link.setAttribute('aria-current','page');
+    else link.removeAttribute('aria-current');
+  });
+  document.title=securityViewTitles[view]+' · Security Center';
+  if(anchor==='ai'||anchor==='eufyAi')document.getElementById('latestAnalyses').open=true;
+  if(changed||initial)window.dispatchEvent(new Event('security:viewchange'));
+  if(!initial){
+    const heading=document.querySelector('#view-'+view+' h1');
+    if(heading){heading.setAttribute('tabindex','-1');heading.focus({preventScroll:true})}
+  }
+  const target=document.getElementById(anchor)||document.getElementById('view-'+view);
+  if(target&&(!initial||location.hash))target.scrollIntoView({block:'start'});
+}
+window.addEventListener('hashchange',()=>selectSecurityView());
+selectSecurityView(true);
+</script>
 <script>
 const $=id=>document.getElementById(id);
 const startBtn=$('start'),sideStart=$('sideStart'),stopBtn=$('stop'),sideStop=$('sideStop'),securityBtn=$('security'),testBtn=$('testTrigger');
@@ -1985,7 +2130,7 @@ function isToday(v){const d=new Date(v),n=new Date();return Number.isFinite(d.ge
 function recentTwoDays(v){const d=new Date(v),n=new Date();const today=new Date(n.getFullYear(),n.getMonth(),n.getDate());const day=new Date(d.getFullYear(),d.getMonth(),d.getDate());const diff=Math.round((today-day)/86400000);return diff===0||diff===1}
 function toast(m){const e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>e.classList.remove('show'),2800)}
 function setHealth(id,text,type=''){const e=$(id);e.textContent=text;e.className='health-value '+type}
-function showStreams(){const t=Date.now();topStream.src='/stream.mjpg?view=top&t='+t;bottomStream.src='/stream.mjpg?view=bottom&t='+t;topStream.style.display=bottomStream.style.display='block';placeholders.forEach(p=>p.style.display='none')}
+function showStreams(){if(!cameraStreamsWanted())return;const t=Date.now();topStream.src='/stream.mjpg?view=top&t='+t;bottomStream.src='/stream.mjpg?view=bottom&t='+t;topStream.style.display=bottomStream.style.display='block';placeholders.forEach(p=>p.style.display='none')}
 function hideStreams(){topStream.removeAttribute('src');bottomStream.removeAttribute('src');topStream.style.display=bottomStream.style.display='none';placeholders.forEach(p=>p.style.display='grid')}
 function retentionText(d){return Number(d)===0?'Onbeperkt bewaren':`${d} dagen bewaren`}
 
@@ -2035,6 +2180,10 @@ async function loadLscAi(){
       aiThumbPlaceholder.textContent='Nog geen AI-thumbnail beschikbaar.';
 
       $('aiFrigateLink').href='https://'+location.hostname+':8971/review';
+$('frigateArchiveLink').href='https://'+location.hostname+':8971/review';
+function syncEufyImages(){if(cameraStreamsWanted()&&lastActive)showStreams();else hideStreams()}
+window.addEventListener('security:viewchange',syncEufyImages);
+document.addEventListener('visibilitychange',syncEufyImages);
       $('aiFrigateLink').textContent='Frigate openen';
 
       const active=!!d.latestReview?.active;
@@ -2270,11 +2419,11 @@ async function openEufyAiRecording(){
 
 async function refresh(){try{const s=await api('/api/status'),sec=s.security||{},storage=sec.storage||{},hb=s.homebase||{},bat=s.battery||{};const ready=s.wsConnected&&s.listening&&s.serialConfigured,healthy=s.streamHealthy;if(sec.eventActive){$('badge').className='badge main '+(healthy?'good':'warn');$('badge').textContent=sec.recording?'● Live-opname':'● Camera wakker maken…'}else if(sec.securityEnabled&&!s.active){const ok=storage.ok&&hb.healthy;$('badge').className='badge main '+(ok?'good':!storage.ok?'danger':'warn');$('badge').textContent=ok?'🛡 Stand-by':!storage.ok?'⚠ Opslagprobleem':'⚠ HomeBase controleren'}else{$('badge').className='badge main '+(healthy?'good':s.recovering?'warn':!ready?'danger':'');$('badge').textContent=s.active?(healthy?'● Live':s.recovering?'● Herverbinden…':'● Verbinden…'):(ready?'Gereed':'Niet gereed')}
 const hbType=hb.healthy?'good':hb.connected?'warn':'danger';$('topHomebase').className='badge '+hbType;$('topHomebase').textContent=hb.healthy?'● HomeBase actief':hb.connected?'● HomeBase wacht':'⚠ HomeBase offline';setHealth('healthHomebase',hb.healthy?'Actief':hb.connected?'Wacht op check':'Offline',hb.healthy?'goodtxt':hb.connected?'warntxt':'dangertxt');setHealth('healthEufy',s.wsConnected?'Verbonden':'Niet verbonden',s.wsConnected?'goodtxt':'dangertxt');setHealth('healthCamera',s.active?(healthy?'Live':'Opstarten'):'Slapend',s.active?(healthy?'goodtxt':'warntxt'):'goodtxt');updateStorage(storage);updateBattery(bat);
-$('heroMode').textContent=sec.securityEnabled?'Zuinige beveiliging actief':'Beveiliging uit';$('securityTitle').textContent=sec.securityEnabled?'Voordeur staat onder bewaking':'Voordeur beveiliging is uit';const batteryNote=bat.available&&bat.batteryPercent<=20?` De deurbelaccu staat op ${bat.batteryPercent}%.`:'';$('securitySub').textContent=(sec.securityEnabled?(sec.eventActive?'Live-trigger is actief; de camera is tijdelijk wakker.':!storage.ok?'Camera slaapt, maar automatisch importeren is geblokkeerd door een opslagprobleem.':hb.healthy?'Camera slaapt. De HomeBase neemt beweging op en de server archiveert automatisch naar de HDD.':'Camera slaapt, maar de HomeBase-monitor heeft geen recente gezonde controle.'):'Automatische HomeBase-import is gepauzeerd. Handmatig live kijken blijft mogelijk.')+batteryNote;
-securityBtn.textContent=sec.securityEnabled?'🛡 Beveiliging uitschakelen':'🛡 Beveiliging inschakelen';securityBtn.className='btn '+(sec.securityEnabled?'red':'green');$('liveBadge').className='badge '+(s.active?(healthy?'good':'warn'):'good');$('liveBadge').textContent=s.active?(healthy?'● Live':'● Verbinden…'):'● Camera slaapt';$('homebaseStatus').textContent=hb.healthy?'Actief':hb.connected?'Verbonden, geen recente check':'Niet actief';$('homebaseCheck').textContent=hb.lastSuccessAt?`${fmtDate(hb.lastSuccessAt)} · ${shortAgo(hb.lastSuccessAt)} geleden`:'-';$('homebaseImport').textContent=hb.lastImportAt?`${fmtDate(hb.lastImportAt)} · ${hb.lastImportedFile||''}`:'Nog geen import sinds statusregistratie';$('active').textContent=s.active?(healthy?'Live':'Herstellen'):(sec.securityEnabled?'Slapend':'Gestopt');$('ws').textContent=s.wsConnected?'Verbonden':'Niet verbonden';$('source').textContent=s.codec?`${s.codec} ${s.width||'?'}×${s.height||'?'} ${s.fps||'?'}fps`:'-';$('selected').textContent=s.selectedStream||(s.active?'Automatisch zoeken…':'-');$('frames').textContent=s.frames??0;$('clients').textContent=s.clients??0;$('restarts').textContent=s.restartCount??0;$('lastTrigger').textContent=sec.lastTriggerAt?fmtDate(sec.lastTriggerAt):'-';$('triggerSource').textContent=sec.lastTriggerSource||'-';$('eventSeconds').textContent=`${sec.eventSeconds||30} sec`;$('eventCount').textContent=hb.eventCount??'-';$('retention').textContent=retentionText(sec.retentionDays);if(lastRetention!==sec.retentionDays){retentionSelect.value=String(sec.retentionDays);lastRetention=sec.retentionDays}$('metricTotalSub').textContent=`${fmtBytes(sec.storageBytes||0)} opgeslagen`;$('metricImport').textContent=hb.lastImportAt?shortAgo(hb.lastImportAt):'-';$('metricImportSub').textContent=hb.lastImportAt?'geleden':hb.lastImportedFile||'Nog geen recente importstatus';
+$('heroMode').textContent=sec.securityEnabled?'Eufy · zuinige bewaking':'Eufy · bewaking uit';$('securityTitle').textContent=sec.securityEnabled?'Eufy-deurbel wordt bewaakt':'Eufy-bewaking staat uit';const batteryNote=bat.available&&bat.batteryPercent<=20?` De deurbelaccu staat op ${bat.batteryPercent}%.`:'';$('securitySub').textContent=(sec.securityEnabled?(sec.eventActive?'Live-trigger is actief; de camera is tijdelijk wakker.':!storage.ok?'Camera slaapt, maar automatisch importeren is geblokkeerd door een opslagprobleem.':hb.healthy?'Camera slaapt. De HomeBase neemt beweging op en de server archiveert automatisch naar de HDD.':'Camera slaapt, maar de HomeBase-monitor heeft geen recente gezonde controle.'):'Automatische HomeBase-import is gepauzeerd. Handmatig live kijken blijft mogelijk.')+batteryNote;
+securityBtn.textContent=sec.securityEnabled?'🛡 Deurbelbewaking uit':'🛡 Deurbel bewaken';securityBtn.className='btn '+(sec.securityEnabled?'red':'green');$('liveBadge').className='badge '+(s.active?(healthy?'good':'warn'):'good');$('liveBadge').textContent=s.active?(healthy?'● Live':'● Verbinden…'):'● Camera slaapt';$('homebaseStatus').textContent=hb.healthy?'Actief':hb.connected?'Verbonden, geen recente check':'Niet actief';$('homebaseCheck').textContent=hb.lastSuccessAt?`${fmtDate(hb.lastSuccessAt)} · ${shortAgo(hb.lastSuccessAt)} geleden`:'-';$('homebaseImport').textContent=hb.lastImportAt?`${fmtDate(hb.lastImportAt)} · ${hb.lastImportedFile||''}`:'Nog geen import sinds statusregistratie';$('active').textContent=s.active?(healthy?'Live':'Herstellen'):(sec.securityEnabled?'Slapend':'Gestopt');$('ws').textContent=s.wsConnected?'Verbonden':'Niet verbonden';$('source').textContent=s.codec?`${s.codec} ${s.width||'?'}×${s.height||'?'} ${s.fps||'?'}fps`:'-';$('selected').textContent=s.selectedStream||(s.active?'Automatisch zoeken…':'-');$('frames').textContent=s.frames??0;$('clients').textContent=s.clients??0;$('restarts').textContent=s.restartCount??0;$('lastTrigger').textContent=sec.lastTriggerAt?fmtDate(sec.lastTriggerAt):'-';$('triggerSource').textContent=sec.lastTriggerSource||'-';$('eventSeconds').textContent=`${sec.eventSeconds||30} sec`;$('eventCount').textContent=hb.eventCount??'-';$('retention').textContent=retentionText(sec.retentionDays);if(lastRetention!==sec.retentionDays){retentionSelect.value=String(sec.retentionDays);lastRetention=sec.retentionDays}$('metricTotalSub').textContent=`${fmtBytes(sec.storageBytes||0)} opgeslagen`;$('metricImport').textContent=hb.lastImportAt?shortAgo(hb.lastImportAt):'-';$('metricImportSub').textContent=hb.lastImportAt?'geleden':hb.lastImportedFile||'Nog geen recente importstatus';
 syncLiveButtons(s.active,sec.eventActive,ready);securityBtn.disabled=!ready&&!sec.securityEnabled;testBtn.disabled=!ready||!sec.securityEnabled||!storage.ok;if(s.active&&!lastActive)showStreams();if(!s.active&&lastActive)hideStreams();lastActive=s.active;if((sec.recordingsCount??0)!==lastRecordingCount){lastRecordingCount=sec.recordingsCount??0;loadRecordings()}const err=sec.lastError||s.lastError;if(err)showError(err);else clearError()}catch(e){$('badge').textContent='Paginafout';$('badge').className='badge main danger';showError(e.message)}}
 
-async function toggleSecurity(){securityBtn.disabled=true;try{const s=await api('/api/status'),on=!!s.security?.securityEnabled;await api(on?'/api/security/off':'/api/security/on',{method:'POST'});toast(on?'Beveiliging uitgeschakeld':'Beveiliging ingeschakeld')}catch(e){showError(e.message)}await refresh()}
+async function toggleSecurity(){securityBtn.disabled=true;try{const s=await api('/api/status'),on=!!s.security?.securityEnabled;await api(on?'/api/security/off':'/api/security/on',{method:'POST'});toast(on?'Deurbelbewaking uitgeschakeld':'Deurbelbewaking ingeschakeld')}catch(e){showError(e.message)}await refresh()}
 async function startLive(){startBtn.disabled=sideStart.disabled=true;try{await api('/api/start',{method:'POST'});showStreams();lastActive=true;toast('Livebeeld wordt gestart')}catch(e){showError(e.message)}await refresh()}
 async function stopLive(){stopBtn.disabled=sideStop.disabled=true;try{await api('/api/stop',{method:'POST'});toast('Livebeeld gestopt')}catch(e){showError(e.message)}await refresh()}
 securityBtn.onclick=toggleSecurity;startBtn.onclick=sideStart.onclick=startLive;stopBtn.onclick=sideStop.onclick=stopLive;
@@ -2285,6 +2434,10 @@ $('aiRefresh').onclick=loadLscAi;
 $('eufyAiRefresh').onclick=loadEufyAi;
 $('eufyAiVideo').onclick=openEufyAiRecording;
 $('aiFrigateLink').href='https://'+location.hostname+':8971/review';
+$('frigateArchiveLink').href='https://'+location.hostname+':8971/review';
+function syncEufyImages(){if(cameraStreamsWanted()&&lastActive)showStreams();else hideStreams()}
+window.addEventListener('security:viewchange',syncEufyImages);
+document.addEventListener('visibilitychange',syncEufyImages);
 
 refresh();
 loadRecordings();
@@ -2308,14 +2461,26 @@ setInterval(loadEufyAi,10000);
   let reconnectTimer = null;
 
   function reconnect() {
-    if (reconnectTimer) return;
+    if (reconnectTimer || !cameraStreamsWanted()) return;
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
-      img.src = '/lsc/stream.mjpg?t=' + Date.now();
+      if(cameraStreamsWanted())img.src = '/lsc/stream.mjpg?t=' + Date.now();
     }, 3000);
   }
 
   img.addEventListener('error', reconnect);
+  function syncLscImage(){
+    if(cameraStreamsWanted()){
+      if(!img.getAttribute('src'))img.src='/lsc/stream.mjpg?t='+Date.now();
+    }else{
+      clearTimeout(reconnectTimer);
+      reconnectTimer=null;
+      img.removeAttribute('src');
+    }
+  }
+  window.addEventListener('security:viewchange',syncLscImage);
+  document.addEventListener('visibilitychange',syncLscImage);
+  syncLscImage();
 
   async function updateLscCamera() {
     try {
@@ -2581,31 +2746,27 @@ async function loadPetFeederAi(){
 }
 
 
+let pfReconnectTimer=null;
 function startPetFeederStream(){
-  const img = pfEl('pfLiveStream');
-
-  if(!img) return;
-
+  const img=pfEl('pfLiveStream');
+  if(!img)return;
+  if(!cameraStreamsWanted()){
+    clearTimeout(pfReconnectTimer);
+    pfReconnectTimer=null;
+    img.removeAttribute('src');
+    return;
+  }
   img.onerror=()=>{
-    const badge=pfEl('pfCameraStatus');
-
-    if(badge){
-      badge.className='badge danger';
-      badge.textContent='● Streamfout';
-    }
-
-    setTimeout(()=>{
-      img.src=
-        '/petfeeder/stream.mjpg?t=' +
-        Date.now();
+    if(!cameraStreamsWanted()||pfReconnectTimer)return;
+    pfReconnectTimer=setTimeout(()=>{
+      pfReconnectTimer=null;
+      if(cameraStreamsWanted())img.src='/petfeeder/stream.mjpg?t='+Date.now();
     },5000);
   };
-
-  img.src=
-    '/petfeeder/stream.mjpg?t=' +
-    Date.now();
+  if(!img.getAttribute('src'))img.src='/petfeeder/stream.mjpg?t='+Date.now();
 }
-
+window.addEventListener('security:viewchange',startPetFeederStream);
+document.addEventListener('visibilitychange',startPetFeederStream);
 
 const pfRefreshButton = pfEl('pfAiRefresh');
 
@@ -2817,6 +2978,14 @@ async function cameraOverviewJson(url){
 }
 
 
+function updateProxyOverview(id,proxy){
+  if(!proxy){cameraOverviewBadge(id,'Niet bereikbaar','bad');return}
+  if(!proxy.configured){cameraOverviewBadge(id,'Niet ingesteld','warn');return}
+  if(proxy.online){cameraOverviewBadge(id,'Live','good');return}
+  if(proxy.active){cameraOverviewBadge(id,proxy.lastError?'Streamfout':'Verbinden…','warn');return}
+  cameraOverviewBadge(id,'Stand-by','');
+}
+
 async function loadCameraOverview(){
 
   const results=await Promise.allSettled([
@@ -2886,71 +3055,20 @@ async function loadCameraOverview(){
     'Nog geen AI-gebeurtenis';
 
 
-  /* LSC */
-
-  if(lsc?.online){
-    cameraOverviewBadge(
-      'camLscStatus',
-      '● Live',
-      'good'
-    );
-
-  }else if(lsc?.configured){
-    cameraOverviewBadge(
-      'camLscStatus',
-      '● Stand-by',
-      'good'
-    );
-
-  }else{
-    cameraOverviewBadge(
-      'camLscStatus',
-      '● Offline',
-      'bad'
-    );
-  }
-
-
+  /* De proxy draait alleen wanneer een browser livebeeld bekijkt. */
+  updateProxyOverview('camLscStatus',lsc);
   document.getElementById('camLscMeta').textContent=
-    (lsc?.fps ?? '-') +
-    ' FPS · ' +
-    (
-      lsc?.mode === 'enhanced'
-        ? 'Enhanced'
-        : 'Normal'
-    );
-
+    lsc?.online ? (lsc.fps??'-')+' FPS · '+(lsc.mode==='enhanced'?'Enhanced':'Normal') : 'Livebeeld is gesloten';
 
   document.getElementById('camLscAi').textContent=
     lscAi?.title ||
     'Nog geen AI-gebeurtenis';
 
 
-  /* PET FEEDER */
-
-  if(pet?.online){
-    cameraOverviewBadge(
-      'camPetStatus',
-      '● Online',
-      'good'
-    );
-
-  }else{
-    cameraOverviewBadge(
-      'camPetStatus',
-      '● Offline',
-      'bad'
-    );
-  }
-
-
+  updateProxyOverview('camPetStatus',pet);
   const petFps=Number(pet?.fps);
-
   document.getElementById('camPetMeta').textContent=
-    Number.isFinite(petFps)
-      ? petFps.toFixed(1).replace('.0','')+' FPS · Frigate'
-      : 'Frigate';
-
+    pet?.online&&Number.isFinite(petFps)?petFps.toFixed(1).replace('.0','')+' FPS':'Livebeeld is gesloten';
 
   document.getElementById('camPetAi').textContent=
     petAi?.title ||
@@ -2970,496 +3088,197 @@ setInterval(
 
 let aiHistoryItems=[];
 let aiHistorySource='all';
-
+let aiHistoryPage=1;
+let aiHistoryLoaded=false;
+let aiHistoryLoading=false;
+let aiHistoryError='';
+let aiHistoryUpdatedAt=null;
+const AI_HISTORY_PAGE_SIZE=12;
+const aiHistoryRenderKeys=new WeakMap();
 
 function aiHistoryEsc(value){
-  return String(value ?? '')
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;')
-    .replaceAll('"','&quot;')
-    .replaceAll("'","&#039;");
+  return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 }
 
+function aiHistoryTimestamp(value){
+  if(value===null||value===undefined||value==='')return NaN;
+  if(typeof value==='number'||/^[0-9.]+$/.test(String(value))){
+    const n=Number(value);
+    return n<1000000000000?n*1000:n;
+  }
+  return new Date(value).getTime();
+}
 
 function aiHistoryDate(value){
-  if(!value)return '-';
-
-  let d;
-
-  if(
-    typeof value === 'number' ||
-    (
-      typeof value === 'string' &&
-      /^[0-9.]+$/.test(value)
-    )
-  ){
-    let n=Number(value);
-
-    if(n < 1000000000000){
-      n*=1000;
-    }
-
-    d=new Date(n);
-
-  }else{
-    d=new Date(value);
-  }
-
-  if(Number.isNaN(d.getTime())){
-    return '-';
-  }
-
-  return d.toLocaleString(
-    'nl-NL',
-    {
-      day:'2-digit',
-      month:'2-digit',
-      year:'numeric',
-      hour:'2-digit',
-      minute:'2-digit',
-      second:'2-digit'
-    }
-  );
+  const time=aiHistoryTimestamp(value);
+  return Number.isFinite(time)?new Date(time).toLocaleString('nl-NL',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'Datum onbekend';
 }
-
 
 function aiHistorySourceInfo(source){
-
-  if(source==='localcar'){
-    return {
-      icon:'🚗',
-      name:'Lokaal'
-    };
-  }
-
-  if(source==='eufy'){
-    return {
-      icon:'🚪',
-      name:'Eufy'
-    };
-  }
-
-  if(source==='petfeeder'){
-    return {
-      icon:'🐾',
-      name:'Pet Feeder'
-    };
-  }
-
-  return {
-    icon:'🏠',
-    name:'LSC'
-  };
+  if(source==='localcar')return {icon:'🚗',name:'LSC · lokaal'};
+  if(source==='eufy')return {icon:'🚪',name:'Eufy'};
+  if(source==='petfeeder')return {icon:'🐾',name:'Pet Feeder'};
+  if(source==='lsc')return {icon:'🏠',name:'LSC'};
+  return {icon:'◉',name:'Camera'};
 }
-
 
 function aiHistoryThreat(item){
-  const n=Number(
-    item.potentialThreatLevel
-  );
-
-  if(!Number.isFinite(n)){
-    return {
-      text:'Dreiging -',
-      cls:''
-    };
-  }
-
-  if(n >= 2){
-    return {
-      text:'Dreiging '+n,
-      cls:'danger'
-    };
-  }
-
-  if(n === 1){
-    return {
-      text:'Dreiging 1',
-      cls:'warn'
-    };
-  }
-
-  return {
-    text:'Geen dreiging',
-    cls:''
-  };
+  if(item.local||item.source==='localcar')return {text:'Lokale detectie',cls:''};
+  const value=item.potentialThreatLevel;
+  const n=Number(value);
+  if(value===null||value===undefined||value===''||!Number.isFinite(n))return {text:'Niet beoordeeld',cls:''};
+  if(n>=2)return {text:'Dreiging '+n,cls:'danger'};
+  if(n===1)return {text:'Dreiging 1',cls:'warn'};
+  return {text:'Geen dreiging',cls:''};
 }
 
+function filterAiHistory(items,source,query,period,now=new Date()){
+  const q=query.trim().toLocaleLowerCase('nl-NL');
+  const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const end=new Date(today);end.setDate(end.getDate()+1);
+  const start=new Date(today);
+  if(period==='yesterday'){start.setDate(start.getDate()-1);end.setTime(today.getTime())}
+  if(period==='week')start.setDate(start.getDate()-6);
+  return items.filter(item=>{
+    if(source!=='all'&&(source==='lsc'?!['lsc','localcar'].includes(item.source):item.source!==source))return false;
+    if(period!=='all'){
+      const time=aiHistoryTimestamp(item.createdAt);
+      if(!Number.isFinite(time)||time<start.getTime()||time>=end.getTime())return false;
+    }
+    const text=[item.title,item.shortSummary,item.scene,item.sourceLabel,aiHistorySourceInfo(item.source).name,...(Array.isArray(item.objects)?item.objects:[])].join(' ').toLocaleLowerCase('nl-NL');
+    return !q||text.includes(q);
+  });
+}
+
+function aiHistoryCard(item){
+  const source=aiHistorySourceInfo(item.source);
+  const threat=aiHistoryThreat(item);
+  const confidence=Number(item.confidence);
+  const confidenceText=item.confidence!==null&&item.confidence!==undefined&&item.confidence!==''&&Number.isFinite(confidence)?Math.round(confidence*100)+'%':null;
+  const objects=Array.isArray(item.objects)?item.objects.map(String).filter(Boolean):[];
+  const hasRecording=Boolean((item.recordingType==='eufy'&&(item.recordingFile||item.videoUrl))||(item.recordingType==='local-car'&&item.videoUrl)||(item.recordingType==='frigate'&&item.reviewId));
+  const thumb=item.thumbnailUrl?'<img loading="lazy" src="'+aiHistoryEsc(item.thumbnailUrl)+'" alt="">':'<div class="ai-history-thumb-empty">Geen afbeelding</div>';
+  return `<article class="ai-history-item" data-source="${aiHistoryEsc(item.source)}">
+    <div class="ai-history-thumb">${thumb}<span class="ai-history-source">${source.icon} ${aiHistoryEsc(source.name)}</span></div>
+    <div class="ai-history-content">
+      <div class="ai-history-head"><div class="ai-history-title">${aiHistoryEsc(item.title||'Gebeurtenis')}</div><span class="ai-history-threat ${threat.cls}">${aiHistoryEsc(threat.text)}</span></div>
+      <div class="ai-history-summary">${aiHistoryEsc(item.shortSummary||item.scene||'Geen beschrijving beschikbaar.')}</div>
+      <div class="ai-history-meta"><span>${aiHistoryEsc(source.name)}</span><span>${aiHistoryEsc(aiHistoryDate(item.createdAt))}</span>${confidenceText?'<span>Zekerheid '+aiHistoryEsc(confidenceText)+'</span>':''}${objects.length?'<span>'+aiHistoryEsc(objects.join(', '))+'</span>':''}</div>
+    </div>
+    <div class="ai-history-actions"><button type="button" class="ai-history-open" data-history-id="${aiHistoryEsc(item.id)}" ${hasRecording?'':'disabled'}>${hasRecording?'▶ Bekijk opname':'Geen opname'}</button></div>
+  </article>`;
+}
+
+function renderAiItems(container,items,emptyText){
+  const key=JSON.stringify([items,emptyText]);
+  if(aiHistoryRenderKeys.get(container)===key)return;
+  aiHistoryRenderKeys.set(container,key);
+  const focusedId=container.contains(document.activeElement)?document.activeElement?.dataset?.historyId:null;
+  container.innerHTML=items.length?items.map(aiHistoryCard).join(''):'<div class="ai-history-empty">'+aiHistoryEsc(emptyText)+'</div>';
+  container.querySelectorAll('[data-history-id]').forEach(button=>{
+    button.addEventListener('click',()=>openAiHistoryItem(button.dataset.historyId));
+    if(focusedId&&button.dataset.historyId===focusedId)button.focus({preventScroll:true});
+  });
+  container.querySelectorAll('.ai-history-thumb img').forEach(img=>{
+    img.addEventListener('error',()=>{
+      const fallback=document.createElement('div');
+      fallback.className='ai-history-thumb-empty';
+      fallback.textContent='Afbeelding niet beschikbaar';
+      img.replaceWith(fallback);
+    },{once:true});
+  });
+}
 
 function renderAiHistory(){
-
-  const list =
-    document.getElementById(
-      'aiHistoryList'
-    );
-
-  const count =
-    document.getElementById(
-      'aiHistoryCount'
-    );
-
-  if(!list || !count)return;
-
-
-  const items=
-    aiHistorySource==='all'
-      ? aiHistoryItems
-      : aiHistoryItems.filter(
-          item =>
-            aiHistorySource === 'lsc'
-              ? (
-                  item.source === 'lsc' ||
-                  item.source === 'localcar'
-                )
-              : item.source === aiHistorySource
-        );
-
-
-  count.textContent=
-    items.length +
-    (
-      items.length === 1
-        ? ' gebeurtenis'
-        : ' gebeurtenissen'
-    );
-
-
-  if(!items.length){
-
-    list.innerHTML=
-      '<div class="ai-history-empty">'+
-      'Geen AI-gebeurtenissen gevonden.'+
-      '</div>';
-
-    return;
-  }
-
-
-  list.innerHTML=
-    items.map(item=>{
-
-      const src=
-        aiHistorySourceInfo(
-          item.source
-        );
-
-      const threat=
-        aiHistoryThreat(item);
-
-      const confidence=
-        Number(item.confidence);
-
-      const confidenceText=
-        Number.isFinite(confidence)
-          ? Math.round(confidence*100)+'%'
-          : null;
-
-      let objects=
-        Array.isArray(item.objects)
-          ? item.objects
-          : [];
-
-      objects=
-        objects
-          .map(String)
-          .filter(Boolean);
-
-
-      const thumb=
-        item.thumbnailUrl
-          ? '<img loading="lazy" src="'+
-            aiHistoryEsc(item.thumbnailUrl)+
-            '" alt="">'
-          : '<div class="ai-history-thumb-empty">'+
-            'Geen thumbnail'+
-            '</div>';
-
-
-      return `
-        <article
-          class="ai-history-item"
-          data-source="${aiHistoryEsc(item.source)}"
-        >
-
-          <div class="ai-history-thumb">
-
-            ${thumb}
-
-            <span class="ai-history-source">
-              ${src.icon} ${aiHistoryEsc(src.name)}
-            </span>
-
-          </div>
-
-
-          <div class="ai-history-content">
-
-            <div class="ai-history-head">
-
-              <div class="ai-history-title">
-                ${aiHistoryEsc(
-                  item.title ||
-                  'AI-gebeurtenis'
-                )}
-              </div>
-
-              <span
-                class="ai-history-threat ${threat.cls}"
-              >
-                ${aiHistoryEsc(threat.text)}
-              </span>
-
-            </div>
-
-
-            <div class="ai-history-summary">
-              ${aiHistoryEsc(
-                item.shortSummary ||
-                item.scene ||
-                'Geen samenvatting beschikbaar.'
-              )}
-            </div>
-
-
-            <div class="ai-history-meta">
-
-              <span>
-                ${aiHistoryEsc(
-                  aiHistoryDate(item.createdAt)
-                )}
-              </span>
-
-              ${
-                confidenceText
-                  ? '<span>Zekerheid '+
-                    aiHistoryEsc(confidenceText)+
-                    '</span>'
-                  : ''
-              }
-
-              ${
-                objects.length
-                  ? '<span>'+
-                    aiHistoryEsc(
-                      objects.join(', ')
-                    )+
-                    '</span>'
-                  : ''
-              }
-
-            </div>
-
-          </div>
-
-
-          <div class="ai-history-actions">
-
-            <button
-              type="button"
-              class="ai-history-open"
-              data-history-id="${aiHistoryEsc(item.id)}"
-            >
-              ▶ Bekijk opname
-            </button>
-
-          </div>
-
-        </article>
-      `;
-
-    }).join('');
-
-
-  list
-    .querySelectorAll(
-      '[data-history-id]'
-    )
-    .forEach(button=>{
-
-      button.addEventListener(
-        'click',
-        ()=>openAiHistoryItem(
-          button.dataset.historyId
-        )
-      );
-
-    });
+  const filtered=filterAiHistory(aiHistoryItems,aiHistorySource,document.getElementById('aiHistorySearch').value,document.getElementById('aiHistoryPeriod').value);
+  const pages=Math.max(1,Math.ceil(filtered.length/AI_HISTORY_PAGE_SIZE));
+  aiHistoryPage=Math.max(1,Math.min(aiHistoryPage,pages));
+  const start=(aiHistoryPage-1)*AI_HISTORY_PAGE_SIZE;
+  const page=filtered.slice(start,start+AI_HISTORY_PAGE_SIZE);
+  const empty=aiHistoryLoaded?'Geen meldingen voor deze filters.':aiHistoryError?'Meldingen konden niet worden geladen. Probeer Vernieuwen.':'Meldingen laden…';
+  renderAiItems(document.getElementById('aiHistoryList'),page,empty);
+  renderAiItems(document.getElementById('recentAiList'),aiHistoryItems.slice(0,5),aiHistoryLoaded?'Nog geen meldingen beschikbaar.':empty);
+  document.getElementById('aiHistoryCount').textContent=filtered.length?`${start+1}–${start+page.length} van ${filtered.length} meldingen`:'0 meldingen';
+  document.getElementById('aiHistoryPage').textContent=`Pagina ${aiHistoryPage} van ${pages}`;
+  document.getElementById('aiHistoryPrev').disabled=aiHistoryPage<=1;
+  document.getElementById('aiHistoryNext').disabled=aiHistoryPage>=pages;
+  const lastUpdate=aiHistoryUpdatedAt?new Date(aiHistoryUpdatedAt).toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'}):null;
+  const statusText=aiHistoryError?(aiHistoryLoaded?'Bijwerken mislukt · laatste gegevens van '+lastUpdate:'Meldingen niet bereikbaar'):lastUpdate?'Bijgewerkt om '+lastUpdate:'Meldingen laden…';
+  document.getElementById('recentAiStatus').textContent=statusText;
+  const status=document.getElementById('aiHistoryStatus');
+  status.textContent=aiHistoryError?(aiHistoryLoaded?'Niet bijgewerkt':'Niet bereikbaar'):aiHistoryLoaded?'Bijgewerkt om '+lastUpdate:'Laden…';
+  status.className='badge'+(aiHistoryError?' warn':'');
+  document.getElementById('aiHistoryLoadNote').textContent=aiHistoryError?statusText+'. Filters zoeken binnen de maximaal 100 geladen meldingen.':`De ${aiHistoryItems.length} meest recente meldingen geladen (maximaal 100). Filters zoeken binnen deze selectie.`;
 }
 
-
-function openAiHistoryItem(id){
-
-  const item=
-    aiHistoryItems.find(
-      x => x.id === id
-    );
-
+async function openAiHistoryItem(id){
+  const item=aiHistoryItems.find(x=>x.id===id);
   if(!item)return;
-
-
-  if(
-    item.recordingType === 'eufy' &&
-    item.recordingFile
-  ){
-
-    if(
-      typeof openModal === 'function'
-    ){
-      openModal(
-        item.recordingFile
-      );
-
-      return;
+  if(item.recordingType==='eufy'){
+    if(item.recordingFile&&typeof openModal==='function'){
+      if(!allRecordings.some(recording=>recording.name===item.recordingFile))await loadRecordings();
+      if(allRecordings.some(recording=>recording.name===item.recordingFile)){
+        openModal(item.recordingFile);
+        return;
+      }
     }
-
-    if(item.videoUrl){
-      window.open(
-        item.videoUrl,
-        '_blank',
-        'noopener'
-      );
-
-      return;
-    }
-  }
-
-
-  if(
-    item.recordingType === 'local-car' &&
-    item.videoUrl
-  ){
-    window.open(
-      item.videoUrl,
-      '_blank',
-      'noopener'
-    );
-
+    if(item.videoUrl){window.open(item.videoUrl,'_blank','noopener');return}
+    toast('Deze opname is niet meer beschikbaar.');
     return;
   }
-
-
-  if(
-    item.recordingType === 'frigate' &&
-    item.reviewId
-  ){
-
-    window.open(
-      'https://' +
-      location.hostname +
-      ':8971/review?id=' +
-      encodeURIComponent(
-        item.reviewId
-      ),
-      '_blank',
-      'noopener'
-    );
+  if(item.recordingType==='local-car'&&item.videoUrl){window.open(item.videoUrl,'_blank','noopener');return}
+  if(item.recordingType==='frigate'&&item.reviewId){
+    window.open('https://'+location.hostname+':8971/review?id='+encodeURIComponent(item.reviewId),'_blank','noopener');
   }
 }
-
 
 async function loadAiHistory(){
-
-  const status=
-    document.getElementById(
-      'aiHistoryStatus'
-    );
-
+  if(aiHistoryLoading)return;
+  aiHistoryLoading=true;
+  const refresh=document.getElementById('aiHistoryRefresh');
+  refresh.disabled=true;
   try{
-
-    const response=
-      await fetch(
-        '/api/ai/history?limit=60',
-        {cache:'no-store'}
-      );
-
-    if(!response.ok){
-      throw new Error(
-        'HTTP '+response.status
-      );
-    }
-
-    const data=
-      await response.json();
-
-    aiHistoryItems=
-      Array.isArray(data.history)
-        ? data.history
-        : [];
-
-
-    if(status){
-      status.className='badge good';
-      status.textContent=
-        '● '+
-        aiHistoryItems.length+
-        ' AI-events';
-    }
-
-    renderAiHistory();
-
+    const response=await fetch('/api/ai/history?limit=100',{cache:'no-store',signal:AbortSignal.timeout(20000)});
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const data=await response.json();
+    if(!Array.isArray(data.history))throw new Error('Ongeldig antwoord');
+    aiHistoryItems=data.history.filter(item=>item&&typeof item==='object'&&item.id).sort((a,b)=>(aiHistoryTimestamp(b.createdAt)||0)-(aiHistoryTimestamp(a.createdAt)||0));
+    aiHistoryLoaded=true;
+    aiHistoryError='';
+    aiHistoryUpdatedAt=Date.now();
   }catch(error){
-
-    if(status){
-      status.className='badge danger';
-      status.textContent='⚠ Fout';
-    }
-
-    const list=
-      document.getElementById(
-        'aiHistoryList'
-      );
-
-    if(list){
-      list.innerHTML=
-        '<div class="ai-history-empty">'+
-        'AI-geschiedenis kon niet worden geladen: '+
-        aiHistoryEsc(error.message)+
-        '</div>';
-    }
+    aiHistoryError=error.message||'Verbindingsfout';
+  }finally{
+    aiHistoryLoading=false;
+    refresh.disabled=false;
+    renderAiHistory();
   }
 }
 
-
-document
-  .querySelectorAll(
-    '.ai-history-filter'
-  )
-  .forEach(button=>{
-
-    button.addEventListener(
-      'click',
-      ()=>{
-
-        aiHistorySource=
-          button.dataset.source ||
-          'all';
-
-        document
-          .querySelectorAll(
-            '.ai-history-filter'
-          )
-          .forEach(b=>
-            b.classList.toggle(
-              'active',
-              b===button
-            )
-          );
-
-        renderAiHistory();
-      }
-    );
-
+document.querySelectorAll('.ai-history-filter').forEach(button=>{
+  button.addEventListener('click',()=>{
+    aiHistorySource=button.dataset.source||'all';
+    aiHistoryPage=1;
+    document.querySelectorAll('.ai-history-filter').forEach(b=>{
+      b.classList.toggle('active',b===button);
+      b.setAttribute('aria-pressed',String(b===button));
+    });
+    renderAiHistory();
   });
-
-
+});
+for(const [id,event] of [['aiHistorySearch','input'],['aiHistoryPeriod','change']]){
+  document.getElementById(id).addEventListener(event,()=>{aiHistoryPage=1;renderAiHistory()});
+}
+document.getElementById('aiHistoryRefresh').addEventListener('click',loadAiHistory);
+function changeAiHistoryPage(delta){
+  aiHistoryPage+=delta;
+  renderAiHistory();
+  document.getElementById('aiHistory').scrollIntoView({block:'start'});
+}
+document.getElementById('aiHistoryPrev').addEventListener('click',()=>changeAiHistoryPage(-1));
+document.getElementById('aiHistoryNext').addEventListener('click',()=>changeAiHistoryPage(1));
 loadAiHistory();
-
-setInterval(
-  loadAiHistory,
-  15000
-);
-
+setInterval(()=>{if(!document.hidden)loadAiHistory()},15000);
 
 </script>
 

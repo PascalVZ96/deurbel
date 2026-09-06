@@ -1,6 +1,20 @@
-# Deurbel Security
+# Security Center
 
 Eigen webviewer en lokaal beveiligingssysteem voor de **Eufy T8213 Video Doorbell Dual**, uitgebreid met een **LSC Smart Connect 1080P IP Indoor Mini** via de Tuya RTSP Bridge.
+
+Het dashboard omvat ook de **Pet Feeder**, AI-meldingen en lokale aankomst-/vertrekdetectie voor de parkeerplaats. Het draait op de eigen Ubuntu-server. De projectmap en Docker-servicenaam blijven `deurbel` en `deurbel-viewer`.
+
+## Dashboard
+
+- **Overzicht:** camerastatus, deurbelarchief, opslag en de vijf nieuwste meldingen.
+- **Camera’s:** handmatige Eufy-bediening, beide deurbelbeelden, LSC en Pet Feeder.
+- **AI-meldingen:** maximaal 100 recente meldingen, met zoeken, camera- en periodefilters en twaalf resultaten per pagina. Lokale auto-events vallen zowel onder LSC als onder Alleen lokaal.
+- **Opnames:** het deurbelarchief en een link naar het bestaande Frigate-archief voor LSC en Pet Feeder.
+- **Systeem en opslag:** verbindingen, HDD, bewaartermijn en versienummer.
+
+De camerabeelden in de browser worden alleen verbonden als Camera’s zichtbaar is. De deurbel start nog steeds handmatig; de bestaande opname- en detectiediensten worden niet door het wisselen van weergave aan- of uitgezet.
+
+Zie [CHANGELOG.md](CHANGELOG.md) voor wijzigingen per versie.
 
 Het project gebruikt een bestaande lokale `eufy-security-ws` verbinding voor de Eufy-deurbel. Home Assistant, go2rtc en VLC zijn niet nodig voor de webviewer. De LSC-camera gebruikt een aparte lokale RTSP-bron en wordt door de viewer omgezet naar browservriendelijke MJPEG.
 
@@ -42,10 +56,28 @@ http://SERVER-IP:8090
 
 ## Bestaande installatie bijwerken
 
+Haal deze versie de eerste keer op en start vervolgens het updatescript:
+
 ```bash
 cd ~/deurbel
-git pull
-sudo docker compose up -d --build
+git pull --ff-only && bash scripts/update.sh
+```
+
+Vanaf de volgende update is dit voldoende:
+
+```bash
+cd ~/deurbel
+bash scripts/update.sh
+```
+
+Het script haalt `origin/main` op, bouwt en controleert de viewer voordat de bestaande viewer wordt vervangen, en controleert daarna de bereikbaarheid van de website. De Frigate-container wordt niet herstart. Bij lokale codewijzigingen of een Git-conflict stopt het script zonder die wijzigingen te wissen; bekijk dan `git status --short`. Het script maakt geen automatische stash en voert geen reset uit.
+
+De lokale `.env`, statusbestanden, camerabeelden en backups horen niet in GitHub. Laat `frigate/config.yml` op de server staan: Frigate kan daarin lokale instellingen of migraties bewaren. Zolang een inkomende update dat bestand niet wijzigt, kan het updatescript die lokale configuratie behouden. Bij een conflict is een gerichte samenvoeging nodig.
+
+Voor een syntaxcontrole zonder Docker, met Node.js 22 of nieuwer:
+
+```bash
+node scripts/check-syntax.mjs
 ```
 
 ## LSC Smart Connect-camera

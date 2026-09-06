@@ -16,6 +16,8 @@ WORKDIR /app
 COPY src ./src
 COPY public ./public
 COPY start.sh ./start.sh
+COPY scripts/check-syntax.mjs ./scripts/check-syntax.mjs
+RUN node scripts/check-syntax.mjs
 RUN chmod +x /app/start.sh
 
 ENV NODE_ENV=production
