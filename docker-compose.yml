@@ -12,6 +12,12 @@ services:
       EUFY_STATION_SERIAL: ${EUFY_STATION_SERIAL:-T8030T2324151AF5}
       EUFY_WS_URL: ${EUFY_WS_URL:-ws://127.0.0.1:3000}
       WEB_PORT: ${WEB_PORT:-8090}
+      DASHBOARD_INTERNAL_PORT: ${DASHBOARD_INTERNAL_PORT:-8091}
+      DASHBOARD_INTERNAL_URL: ${DASHBOARD_INTERNAL_URL:-http://127.0.0.1:8091}
+      DASHBOARD_USERNAME: ${DASHBOARD_USERNAME:-}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+      DASHBOARD_SESSION_SECRET: ${DASHBOARD_SESSION_SECRET:-}
+      DASHBOARD_SESSION_HOURS: ${DASHBOARD_SESSION_HOURS:-336}
       VIEWER_PORT: ${VIEWER_PORT:-8092}
       MJPEG_FPS: ${MJPEG_FPS:-8}
       MJPEG_QUALITY: ${MJPEG_QUALITY:-5}
@@ -68,7 +74,7 @@ services:
         - CMD
         - node
         - -e
-        - "fetch('http://127.0.0.1:'+(process.env.WEB_PORT||'8090')+'/api/status').then(r=>{if(!r.ok)throw new Error('http '+r.status);return r.json()}).then(d=>process.exit(d.wsConnected&&d.homebase?.healthy&&d.security?.storage?.ok?0:1)).catch(()=>process.exit(1))"
+        - "fetch('http://127.0.0.1:'+(process.env.DASHBOARD_INTERNAL_PORT||'8091')+'/api/status').then(r=>{if(!r.ok)throw new Error('http '+r.status);return r.json()}).then(d=>process.exit(d.wsConnected&&d.homebase?.healthy&&d.security?.storage?.ok?0:1)).catch(()=>process.exit(1))"
       interval: 30s
       timeout: 8s
       retries: 4
