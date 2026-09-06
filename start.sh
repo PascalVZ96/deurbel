@@ -46,9 +46,13 @@ wait_for_dashboard() {
 
 cleanup() {
   echo "[launcher] Container stopt; processen netjes afsluiten."
+  [ -n "${NOTIFY_SUP_PID:-}" ] && kill "$NOTIFY_SUP_PID" 2>/dev/null || true
+  [ -n "${GENAI_FALLBACK_SUP_PID:-}" ] && kill "$GENAI_FALLBACK_SUP_PID" 2>/dev/null || true
   [ -n "${BATTERY_SUP_PID:-}" ] && kill "$BATTERY_SUP_PID" 2>/dev/null || true
   [ -n "${HOMEBASE_SUP_PID:-}" ] && kill "$HOMEBASE_SUP_PID" 2>/dev/null || true
+  [ -n "${EUFY_AI_SUP_PID:-}" ] && kill "$EUFY_AI_SUP_PID" 2>/dev/null || true
   [ -n "${LSC_SUP_PID:-}" ] && kill "$LSC_SUP_PID" 2>/dev/null || true
+  [ -n "${PETFEEDER_SUP_PID:-}" ] && kill "$PETFEEDER_SUP_PID" 2>/dev/null || true
   [ -n "${SECURITY_SUP_PID:-}" ] && kill "$SECURITY_SUP_PID" 2>/dev/null || true
   [ -n "${CONTINUOUS_SUP_PID:-}" ] && kill "$CONTINUOUS_SUP_PID" 2>/dev/null || true
   [ -n "${SUPERVISOR_SUP_PID:-}" ] && kill "$SUPERVISOR_SUP_PID" 2>/dev/null || true
@@ -92,6 +96,17 @@ else
   echo "[launcher] LSC-camera proxy UIT; LSC_RTSP_URL is niet ingesteld."
 fi
 
+
+# Pet Feeder-camera via dezelfde lokale Tuya RTSP Bridge.
+# De MJPEG-conversie draait alleen zolang het dashboard live meekijkt.
+if [ -n "${PETFEEDER_RTSP_URL:-}" ]; then
+  supervise "petfeeder-proxy" env PETFEEDER_PROXY_PORT="${PETFEEDER_PROXY_PORT:-8094}" node src/petfeeder-proxy.mjs &
+  PETFEEDER_SUP_PID=$!
+  echo "[launcher] Pet Feeder proxy AAN op poort ${PETFEEDER_PROXY_PORT:-8094}."
+else
+  echo "[launcher] Pet Feeder proxy UIT; PETFEEDER_RTSP_URL is niet ingesteld."
+fi
+
 # Bij een server-/containerstart wachten we eerst tot de lokale dashboard/API-service
 # antwoordt. Hierdoor probeert de HomeBase-poller niet te vroeg de beveiligingsstatus
 # op te vragen. Na 30 seconden starten de monitors alsnog; eigen reconnect blijft fallback.
@@ -99,6 +114,44 @@ wait_for_dashboard
 
 supervise "homebase-poller" env SECURITY_STATUS_URL="http://127.0.0.1:${WEB_PORT}/api/status" node src/homebase-poller.mjs &
 HOMEBASE_SUP_PID=$!
+
+case "${EUFY_AI_ENABLED:-1}" in
+  1|true|TRUE|yes|YES|on|ON)
+    supervise "eufy-homebase-ai" node src/eufy-ai.mjs &
+    EUFY_AI_SUP_PID=$!
+    echo "[launcher] Eufy HomeBase AI-analyse AAN."
+    ;;
+  *)
+    echo "[launcher] Eufy HomeBase AI-analyse UIT."
+    ;;
+esac
+
+
+case "${NOTIFY_ENABLED:-1}" in
+  1|true|TRUE|yes|YES|on|ON)
+    supervise "notification-monitor" node src/notification-monitor.mjs &
+
+supervise "local-car-monitor" node src/local-car-monitor.mjs &
+echo "[launcher] Lokale auto aankomst/vertrek detectie AAN."
+    NOTIFY_SUP_PID=$!
+    echo "[launcher] AI-pushmeldingen AAN."
+    ;;
+  *)
+    echo "[launcher] AI-pushmeldingen UIT."
+    ;;
+esac
+
+
+case "${FRIGATE_FALLBACK_ENABLED:-1}" in
+  1|true|TRUE|yes|YES|on|ON)
+    supervise "frigate-genai-fallback" node src/frigate-genai-fallback.mjs &
+    GENAI_FALLBACK_SUP_PID=$!
+    echo "[launcher] Frigate GenAI-fallback AAN."
+    ;;
+  *)
+    echo "[launcher] Frigate GenAI-fallback UIT."
+    ;;
+esac
 
 # De batterijmonitor gebruikt directe HomeBase P2P-camera-info als primaire bron,
 # houdt lokale geschiedenis bij en wordt zelfstandig opnieuw gestart.
