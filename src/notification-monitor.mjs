@@ -36,7 +36,10 @@ const cfg = {
     String(process.env.NOTIFY_PETFEEDER || '1')
   ),
 
-  api: 'http://127.0.0.1:8090',
+  api: String(
+    process.env.DASHBOARD_INTERNAL_URL ||
+    'http://127.0.0.1:8091'
+  ).replace(/\/+$/,''),
   dataDir: process.env.DATA_DIR || '/data',
 };
 
