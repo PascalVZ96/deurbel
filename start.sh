@@ -3,6 +3,7 @@ set -eu
 
 VIEWER_PORT="${VIEWER_PORT:-8092}"
 WEB_PORT="${WEB_PORT:-8090}"
+DASHBOARD_INTERNAL_PORT="${DASHBOARD_INTERNAL_PORT:-8091}"
 RESTART_DELAY="${PROCESS_RESTART_DELAY_SECONDS:-3}"
 
 supervise() (
@@ -33,19 +34,20 @@ supervise() (
 wait_for_dashboard() {
   attempt=0
   while [ "$attempt" -lt 30 ]; do
-    if node -e "fetch('http://127.0.0.1:${WEB_PORT}/api/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" >/dev/null 2>&1; then
-      echo "[launcher] Dashboard/API is gereed; HomeBase-poller en batterijmonitor mogen starten."
+    if node -e "fetch('http://127.0.0.1:${DASHBOARD_INTERNAL_PORT}/api/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" >/dev/null 2>&1; then
+      echo "[launcher] Interne dashboard/API is gereed; HomeBase-poller en batterijmonitor mogen starten."
       return 0
     fi
     attempt=$((attempt + 1))
     sleep 1
   done
-  echo "[launcher] Dashboard/API na 30s nog niet gereed; monitors starten toch en herstellen zelf."
+  echo "[launcher] Interne dashboard/API na 30s nog niet gereed; monitors starten toch en herstellen zelf."
   return 0
 }
 
 cleanup() {
   echo "[launcher] Container stopt; processen netjes afsluiten."
+  [ -n "${AUTH_SUP_PID:-}" ] && kill "$AUTH_SUP_PID" 2>/dev/null || true
   [ -n "${NOTIFY_SUP_PID:-}" ] && kill "$NOTIFY_SUP_PID" 2>/dev/null || true
   [ -n "${GENAI_FALLBACK_SUP_PID:-}" ] && kill "$GENAI_FALLBACK_SUP_PID" 2>/dev/null || true
   [ -n "${BATTERY_SUP_PID:-}" ] && kill "$BATTERY_SUP_PID" 2>/dev/null || true
@@ -82,8 +84,13 @@ case "${CONTINUOUS_STREAM_ENABLED:-0}" in
     ;;
 esac
 
-supervise "security-monitor" env WEB_PORT="$WEB_PORT" VIEWER_PORT="$VIEWER_PORT" node src/security-monitor.mjs &
+# De echte Security Center-service luistert alleen intern op localhost. De aparte
+# auth-proxy is de enige publieke ingang op WEB_PORT.
+supervise "security-monitor" env WEB_PORT="$DASHBOARD_INTERNAL_PORT" VIEWER_PORT="$VIEWER_PORT" node src/security-internal.mjs &
 SECURITY_SUP_PID=$!
+
+supervise "dashboard-auth" env WEB_PORT="$WEB_PORT" DASHBOARD_INTERNAL_PORT="$DASHBOARD_INTERNAL_PORT" node src/dashboard-auth-proxy.mjs &
+AUTH_SUP_PID=$!
 
 # De LSC-camera is netgevoed en komt via de lokale Tuya RTSP Bridge binnen.
 # De proxy start alleen als LSC_RTSP_URL is ingesteld en zet RTSP pas om naar
@@ -95,7 +102,6 @@ if [ -n "${LSC_RTSP_URL:-}" ]; then
 else
   echo "[launcher] LSC-camera proxy UIT; LSC_RTSP_URL is niet ingesteld."
 fi
-
 
 # Pet Feeder-camera via dezelfde lokale Tuya RTSP Bridge.
 # De MJPEG-conversie draait alleen zolang het dashboard live meekijkt.
@@ -112,7 +118,7 @@ fi
 # op te vragen. Na 30 seconden starten de monitors alsnog; eigen reconnect blijft fallback.
 wait_for_dashboard
 
-supervise "homebase-poller" env SECURITY_STATUS_URL="http://127.0.0.1:${WEB_PORT}/api/status" node src/homebase-poller.mjs &
+supervise "homebase-poller" env SECURITY_STATUS_URL="http://127.0.0.1:${DASHBOARD_INTERNAL_PORT}/api/status" node src/homebase-poller.mjs &
 HOMEBASE_SUP_PID=$!
 
 case "${EUFY_AI_ENABLED:-1}" in
@@ -126,21 +132,19 @@ case "${EUFY_AI_ENABLED:-1}" in
     ;;
 esac
 
-
 case "${NOTIFY_ENABLED:-1}" in
   1|true|TRUE|yes|YES|on|ON)
-    supervise "notification-monitor" node src/notification-monitor.mjs &
-
-supervise "local-car-monitor" node src/local-car-monitor.mjs &
-echo "[launcher] Lokale auto aankomst/vertrek detectie AAN."
+    supervise "notification-monitor" env DASHBOARD_INTERNAL_URL="http://127.0.0.1:${DASHBOARD_INTERNAL_PORT}" node src/notification-monitor.mjs &
     NOTIFY_SUP_PID=$!
+
+    supervise "local-car-monitor" node src/local-car-monitor.mjs &
+    echo "[launcher] Lokale auto aankomst/vertrek detectie AAN."
     echo "[launcher] AI-pushmeldingen AAN."
     ;;
   *)
     echo "[launcher] AI-pushmeldingen UIT."
     ;;
 esac
-
 
 case "${FRIGATE_FALLBACK_ENABLED:-1}" in
   1|true|TRUE|yes|YES|on|ON)
@@ -158,8 +162,8 @@ esac
 supervise "battery-monitor" node src/battery-monitor.mjs &
 BATTERY_SUP_PID=$!
 
-echo "[launcher] Self-healing actief voor viewer, stream-supervisor, security-monitor, HomeBase-poller en batterijmonitor${CONTINUOUS_SUP_PID:+, plus 24/7-streammonitor}${LSC_SUP_PID:+, plus LSC-camera proxy}."
+echo "[launcher] Self-healing actief voor viewer, beveiligd dashboard, security-monitor, HomeBase-poller en batterijmonitor${CONTINUOUS_SUP_PID:+, plus 24/7-streammonitor}${LSC_SUP_PID:+, plus LSC-camera proxy}."
 
-# De security-monitor is de publieke dashboard/API-service. Als zijn supervisor
-# ooit onverwacht volledig stopt, laat Docker de container opnieuw starten.
+# De interne security-monitor is de kernservice. Als zijn supervisor ooit onverwacht
+# volledig stopt, laat Docker de container opnieuw starten.
 wait "$SECURITY_SUP_PID"
