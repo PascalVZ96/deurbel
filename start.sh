@@ -86,7 +86,7 @@ esac
 
 # De echte Security Center-service luistert alleen intern op localhost. De aparte
 # auth-proxy is de enige publieke ingang op WEB_PORT.
-supervise "security-monitor" env WEB_PORT="$DASHBOARD_INTERNAL_PORT" VIEWER_PORT="$VIEWER_PORT" node src/security-internal.mjs &
+supervise "security-monitor" env WEB_PORT="$DASHBOARD_INTERNAL_PORT" VIEWER_PORT="$VIEWER_PORT" node src/security-dashboard.mjs &
 SECURITY_SUP_PID=$!
 
 supervise "dashboard-auth" env WEB_PORT="$WEB_PORT" DASHBOARD_INTERNAL_PORT="$DASHBOARD_INTERNAL_PORT" node src/dashboard-auth-proxy.mjs &
