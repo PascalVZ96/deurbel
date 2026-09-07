@@ -195,11 +195,18 @@ function redirect(res, location, headers = {}) {
   res.end();
 }
 
+function frigateUpstreamPath(requestUrl = '/') {
+  const value = String(requestUrl || '/');
+  const stripped = value.replace(/^\/frigate(?=\/|\?|$)/, '');
+  return stripped || '/';
+}
+
 function proxyRequest(req, res, {
   port,
   extraHeaders = {},
   stripCookie = false,
   label = 'Dashboard',
+  upstreamPath = req.url,
 } = {}) {
   const headers = {
     ...req.headers,
@@ -213,7 +220,7 @@ function proxyRequest(req, res, {
     hostname: '127.0.0.1',
     port,
     method: req.method,
-    path: req.url,
+    path: upstreamPath,
     headers,
   }, upstreamRes => {
     const responseHeaders = { ...upstreamRes.headers };
@@ -249,6 +256,7 @@ function proxyUpgrade(req, socket, head, {
   port,
   extraHeaders = {},
   stripCookie = false,
+  upstreamPath = req.url,
 } = {}) {
   const headers = {
     ...req.headers,
@@ -261,7 +269,7 @@ function proxyUpgrade(req, socket, head, {
     hostname: '127.0.0.1',
     port,
     method: req.method,
-    path: req.url,
+    path: upstreamPath,
     headers,
   });
 
@@ -371,6 +379,7 @@ const server = http.createServer(async (req, res) => {
       extraHeaders: frigateHeaders(),
       stripCookie: true,
       label: 'Frigate',
+      upstreamPath: frigateUpstreamPath(req.url),
     });
     return;
   }
@@ -401,6 +410,7 @@ server.on('upgrade', (req, socket, head) => {
       port: config.frigatePort,
       extraHeaders: frigateHeaders(),
       stripCookie: true,
+      upstreamPath: frigateUpstreamPath(req.url),
     });
     return;
   }
