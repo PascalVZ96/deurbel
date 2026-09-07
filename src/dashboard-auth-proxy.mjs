@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 const config = {
   port: Number(process.env.WEB_PORT || 8090),
   upstreamPort: Number(process.env.DASHBOARD_INTERNAL_PORT || 8091),
+  frigatePort: Number(process.env.FRIGATE_INTERNAL_PORT || 5000),
   username: String(process.env.DASHBOARD_USERNAME || '').trim(),
   password: String(process.env.DASHBOARD_PASSWORD || ''),
   sessionSecret: String(process.env.DASHBOARD_SESSION_SECRET || ''),
@@ -70,9 +71,6 @@ function isLoopback(address) {
 function clientIp(req) {
   const remote = String(req.socket.remoteAddress || '');
 
-  // Alleen een reverse proxy op dezelfde machine mag het echte client-IP doorgeven.
-  // Hierdoor kan een directe LAN-client X-Forwarded-For niet misbruiken om de
-  // inlog-rate-limit te omzeilen.
   if (isLoopback(remote)) {
     const forwarded = String(req.headers['x-forwarded-for'] || '')
       .split(',')[0]
@@ -197,13 +195,23 @@ function redirect(res, location, headers = {}) {
   res.end();
 }
 
-function proxy(req, res) {
-  const headers = { ...req.headers, host: `127.0.0.1:${config.upstreamPort}` };
+function proxyRequest(req, res, {
+  port,
+  extraHeaders = {},
+  stripCookie = false,
+  label = 'Dashboard',
+} = {}) {
+  const headers = {
+    ...req.headers,
+    host: `127.0.0.1:${port}`,
+    ...extraHeaders,
+  };
   delete headers['content-length'];
+  if (stripCookie) delete headers.cookie;
 
   const upstream = http.request({
     hostname: '127.0.0.1',
-    port: config.upstreamPort,
+    port,
     method: req.method,
     path: req.url,
     headers,
@@ -219,13 +227,72 @@ function proxy(req, res) {
 
   upstream.on('error', error => {
     if (!res.headersSent) {
-      sendHtml(res, 502, loginPage(`Dashboard intern niet bereikbaar: ${error.message}`));
+      sendHtml(res, 502, loginPage(`${label} intern niet bereikbaar: ${error.message}`));
     } else {
       try { res.end(); } catch {}
     }
   });
 
   req.pipe(upstream);
+}
+
+function rawResponseHead(upstreamRes) {
+  let value = `HTTP/1.1 ${upstreamRes.statusCode || 502} ${upstreamRes.statusMessage || 'Bad Gateway'}\r\n`;
+  const raw = upstreamRes.rawHeaders || [];
+  for (let i = 0; i < raw.length; i += 2) {
+    value += `${raw[i]}: ${raw[i + 1]}\r\n`;
+  }
+  return value + '\r\n';
+}
+
+function proxyUpgrade(req, socket, head, {
+  port,
+  extraHeaders = {},
+  stripCookie = false,
+} = {}) {
+  const headers = {
+    ...req.headers,
+    host: `127.0.0.1:${port}`,
+    ...extraHeaders,
+  };
+  if (stripCookie) delete headers.cookie;
+
+  const upstream = http.request({
+    hostname: '127.0.0.1',
+    port,
+    method: req.method,
+    path: req.url,
+    headers,
+  });
+
+  upstream.on('upgrade', (upstreamRes, upstreamSocket, upstreamHead) => {
+    socket.write(rawResponseHead(upstreamRes));
+    if (upstreamHead?.length) socket.write(upstreamHead);
+    if (head?.length) upstreamSocket.write(head);
+    upstreamSocket.pipe(socket);
+    socket.pipe(upstreamSocket);
+  });
+
+  upstream.on('response', upstreamRes => {
+    socket.write(rawResponseHead(upstreamRes));
+    upstreamRes.pipe(socket);
+  });
+
+  upstream.on('error', () => {
+    if (!socket.destroyed) {
+      socket.write('HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n');
+      socket.destroy();
+    }
+  });
+
+  upstream.end();
+}
+
+function frigateHeaders() {
+  return {
+    'x-ingress-path': '/frigate',
+    'x-forwarded-prefix': '/frigate',
+  };
 }
 
 const server = http.createServer(async (req, res) => {
@@ -279,7 +346,11 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (!validSession(req)) {
-    if (url.pathname.startsWith('/api/') || url.pathname.endsWith('.mjpg') || url.pathname.startsWith('/recordings/')) {
+    if (
+      url.pathname.startsWith('/api/') ||
+      url.pathname.endsWith('.mjpg') ||
+      url.pathname.startsWith('/recordings/')
+    ) {
       setSecurityHeaders(res);
       res.writeHead(401, { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'no-store' });
       res.end(JSON.stringify({ ok:false, error:'Niet ingelogd' }));
@@ -289,11 +360,59 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  proxy(req, res);
+  if (url.pathname === '/frigate') {
+    redirect(res, '/frigate/');
+    return;
+  }
+
+  if (url.pathname.startsWith('/frigate/')) {
+    proxyRequest(req, res, {
+      port: config.frigatePort,
+      extraHeaders: frigateHeaders(),
+      stripCookie: true,
+      label: 'Frigate',
+    });
+    return;
+  }
+
+  proxyRequest(req, res, {
+    port: config.upstreamPort,
+    label: 'Dashboard',
+  });
+});
+
+server.on('upgrade', (req, socket, head) => {
+  let url;
+  try {
+    url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  } catch {
+    socket.destroy();
+    return;
+  }
+
+  if (!authConfigured() || !validSession(req)) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+
+  if (url.pathname.startsWith('/frigate/')) {
+    proxyUpgrade(req, socket, head, {
+      port: config.frigatePort,
+      extraHeaders: frigateHeaders(),
+      stripCookie: true,
+    });
+    return;
+  }
+
+  proxyUpgrade(req, socket, head, {
+    port: config.upstreamPort,
+  });
 });
 
 server.listen(config.port, '0.0.0.0', () => {
   console.log(`[auth] Security Center login actief op 0.0.0.0:${config.port}`);
   console.log(`[auth] Intern dashboard: http://127.0.0.1:${config.upstreamPort}`);
+  console.log(`[auth] Frigate beveiligd beschikbaar via /frigate/ -> 127.0.0.1:${config.frigatePort}`);
   if (!authConfigured()) console.warn('[auth] Loginconfiguratie ontbreekt; dashboard blijft geblokkeerd.');
 });
