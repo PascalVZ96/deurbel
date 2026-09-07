@@ -62,8 +62,28 @@ function validSession(req) {
   }
 }
 
+function isLoopback(address) {
+  const value = String(address || '');
+  return value === '127.0.0.1' || value === '::1' || value === '::ffff:127.0.0.1';
+}
+
 function clientIp(req) {
-  return String(req.socket.remoteAddress || 'unknown');
+  const remote = String(req.socket.remoteAddress || '');
+
+  // Alleen een reverse proxy op dezelfde machine mag het echte client-IP doorgeven.
+  // Hierdoor kan een directe LAN-client X-Forwarded-For niet misbruiken om de
+  // inlog-rate-limit te omzeilen.
+  if (isLoopback(remote)) {
+    const forwarded = String(req.headers['x-forwarded-for'] || '')
+      .split(',')[0]
+      .trim();
+    if (forwarded) return forwarded;
+
+    const realIp = String(req.headers['x-real-ip'] || '').trim();
+    if (realIp) return realIp;
+  }
+
+  return remote || 'unknown';
 }
 
 function loginAllowed(req) {
