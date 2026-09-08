@@ -111,6 +111,13 @@ function clean(text,max=360){
   return s.slice(0,max-1)+'…';
 }
 
+function alertLink(historyId){
+  return cfg.dashboard +
+    '/?alert=' +
+    encodeURIComponent(String(historyId || '')) +
+    '#aiHistory';
+}
+
 function itemLsc(d){
   if(!d?.reviewId)return null;
 
@@ -175,7 +182,7 @@ function itemLsc(d){
 
     threat:Number(d.potentialThreatLevel || 0),
 
-    click:cfg.dashboard + '/#ai',
+    click:alertLink('lsc:' + d.reviewId),
 
     tags:['house','camera']
   };
@@ -198,7 +205,7 @@ function itemPetFeeder(d){
 
     threat:Number(d.potentialThreatLevel || 0),
 
-    click:cfg.dashboard + '/#petfeeder',
+    click:alertLink('petfeeder:' + d.reviewId),
 
     tags:['cat','camera']
   };
@@ -225,7 +232,7 @@ function itemEufy(d){
       a.potential_threat_level || 0
     ),
 
-    click:cfg.dashboard + '/#eufyAi',
+    click:alertLink('eufy:' + a.recordingFile),
 
     tags:['door','camera']
   };
