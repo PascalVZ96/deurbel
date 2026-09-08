@@ -148,7 +148,7 @@ esac
 
 case "${FRIGATE_FALLBACK_ENABLED:-1}" in
   1|true|TRUE|yes|YES|on|ON)
-    supervise "frigate-genai-fallback" node src/frigate-genai-fallback.mjs &
+    supervise "frigate-genai-fallback" node src/petfeeder-spooky.mjs &
     GENAI_FALLBACK_SUP_PID=$!
     echo "[launcher] Frigate GenAI-fallback AAN."
     ;;
