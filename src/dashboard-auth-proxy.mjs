@@ -331,11 +331,28 @@ function frigateHeaders() {
   };
 }
 
+function isPublicPwaAsset(pathname) {
+  return pathname === '/pwa/manifest.webmanifest' ||
+    pathname === '/pwa/service-worker.js' ||
+    pathname === '/pwa/icon.svg' ||
+    pathname === '/pwa/icon-192.png' ||
+    pathname === '/pwa/icon-512.png';
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
   if (!authConfigured()) {
     sendHtml(res, 503, setupPage());
+    return;
+  }
+
+  if (req.method === 'GET' && isPublicPwaAsset(url.pathname)) {
+    proxyRequest(req, res, {
+      port: config.upstreamPort,
+      stripCookie: true,
+      label: 'PWA-bestand',
+    });
     return;
   }
 
@@ -461,5 +478,6 @@ server.listen(config.port, '0.0.0.0', () => {
   console.log(`[auth] Security Center login actief op 0.0.0.0:${config.port}`);
   console.log(`[auth] Intern dashboard: http://127.0.0.1:${config.upstreamPort}`);
   console.log(`[auth] Frigate beveiligd beschikbaar via /frigate/ -> 127.0.0.1:${config.frigatePort}`);
+  console.log('[auth] Publieke PWA-metadata actief onder /pwa/; dashboard en cameradata blijven beveiligd.');
   if (!authConfigured()) console.warn('[auth] Loginconfiguratie ontbreekt; dashboard blijft geblokkeerd.');
 });
