@@ -1,0 +1,74 @@
+import http from 'node:http';
+
+const previousCreateServer = http.createServer.bind(http);
+
+const icon192 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAAFLklEQVR42u3dvW4bRxQGUIpQ48KNH8JlALXp3Kh0nUqAAT2BKyMPELjyEwgwkCq1yzTu0gZImadxQUAQTFJazv7M3HvPVxgGTVPa4eG3s8Nd8urV6zc7kdbsDYEAJAAJQAKQCEACkAAkAIkAJAAJQAKQCEACkAAkAIkAJAAJQAKQCEACkAAkAIkAJEe5/7L98U85mWtDcM7NyVsePr4zPk9z5bqw5+mcDEYAtbghCaDF6GBUGtBK8+KCkmobuEzdePvw9fSf/xE0YlAbXTedpLmJUQFZ2QIO6KakiqJXoYJQc0A5uRE4IqIsbiDoMEoEOYU1VCQzoZqaioIyCAVpYAOxCp04hhQEooXIKFtLogBK4yV1I4wLKxyelpOEApXeTjNEogKqxSSOpPyB0QjPqBoiXHJA6AEIn08H/dIC4SRsJmoKbL4WYpSRtY2gLQRD3oLM5oA0P9LyzkZs6gXbprSwUInaXGsCOja3QwmhMfriAACUACkAAkApAAJAAJQCIAybqp9Smt//7958xHuLm9g6YioPl0nj4ORrV2YUvpWe8BARKA1I8SAkgAEoAEIBGAZPVkW0jc8uCo+WdlWoe8RqfXr5qD0TU6GJWeA0Vf0Iv++++Nvq0oCijTmwlxt8VhvJQElO+9zKBbpIGkHqCsp1JE3C4NJLNybQiO8/aXX0/e/v9//xgcgC52c3wHkgC6jM7J+2NkDtSiZ/5/1EDV6agiDbRkf1Suoj09DAEkAEWun8oltKeHIUdhy+f+j79+uuXh998MS58GOv7OmF7f7TCxIY71nLtxnBI6HtJtvu5JA12g5PCvqshRmAC0wv5r4k7qxbuVmkproMv0NNwZIBGABCCpC2icpaCU6bUIpIEEoKU68pLlQWuJFQG9eN7gRBYv3q3UCYoaSGbFe2En2uXcOqE9V/UGmrhzOQllop5qJ9hfvXr9ZrMfdv/l+0+3fPv6ueFx5lxDvvYbVTMBNXziXcdj+IpzoFUbouD1PRUn0Ss9zTWvDnMUJgAN0BZlL06t20ALPuWVL20uvQ50eOLnHJf5gA5zoHYE9Ow2XgfaLbQUtNJnCU6vopXohFsEiroLu7m9W8PQIwsfcRcJ0PsPn9rWowMdo603dOZAjQOR6Su32rZokFM6twa08R46q55xhrdDA53cSCU0v366vDj77MIYWnzn1ava9+O/sBIburm9Czr1eczW60BPc7wmdMj2JwlFmfec09NxZtnzMP7h47tzhpqfj/EZLV6ZfY9LejbQMz002sqQifO4c6ClJtT0mEQzFG8ohgB07pXE0JgT5xEbyAp10OHaDz4oxUto2KnPoHMghmLpGXESzVAgPbtAp7SWMhRoY0cEVPygbPDDrhgN5KAsyoDsYw1Z+hKKMvWJMQeqZiicnl3Q68JSGgq6UaMDKjKhjjVxDtZAZSfUITZ8H3co05RQxKnPY/qfUDY9y54CS0/dSXS1Y3sNtHoJRayiuBPnwA30/OAGqqIcenb5PmDq8MSMXEXJdrjBdmET92XDGnpeT8QFi6iAphgailE+OuEBBaqirHoyABq8ihLTyQNo2CpKrycVoKGqqAKdhIAGqaI6enIC6lhFpehkBtSligrqSQ5osyqqSacEoA2qqLKeKoBWqqLidGoBWryK6KkIaJEqQqc0oJlVRA9AjVWEDkDtVUQPQLOqCB2AlmdED0CNhtABqJ0RPQA1GkIHoHZG9AAky2dvCAQgAUgAEoBEABKABCABSAQgAUgAEoBEABKABCABSAQgAUgAksD5AVvPZLYwgJGBAAAAAElFTkSuQmCC','base64');
+
+const icon512 = Buffer.from('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','base64');
+
+const manifest = JSON.stringify({
+  id:'/',
+  name:'Pascal Security Center',
+  short_name:'Security',
+  description:'Camera’s, AI-meldingen en opnames in één Security Center.',
+  start_url:'/',
+  scope:'/',
+  display:'standalone',
+  background_color:'#090d12',
+  theme_color:'#090d12',
+  prefer_related_applications:false,
+  icons:[
+    {src:'/pwa/icon-192.png',sizes:'192x192',type:'image/png',purpose:'any'},
+    {src:'/pwa/icon-512.png',sizes:'512x512',type:'image/png',purpose:'any'},
+    {src:'/pwa/icon-512.png',sizes:'512x512',type:'image/png',purpose:'maskable'}
+  ],
+  shortcuts:[
+    {name:'Camera’s',short_name:'Camera’s',url:'/#cameras'},
+    {name:'AI-meldingen',short_name:'AI',url:'/#aiHistory'},
+    {name:'Opnames',short_name:'Opnames',url:'/#recordingsSection'}
+  ]
+},null,2);
+
+function send(res,status,type,data,cacheControl){
+  const body=Buffer.isBuffer(data)?data:Buffer.from(data);
+  res.writeHead(status,{
+    'Content-Type':type,
+    'Content-Length':body.length,
+    'Cache-Control':cacheControl,
+    'X-Content-Type-Options':'nosniff'
+  });
+  res.end(body);
+}
+
+http.createServer = function pwaInstallFixCreateServer(options, listener){
+  let serverOptions=options;
+  let requestListener=listener;
+  if(typeof options==='function'){
+    requestListener=options;
+    serverOptions=undefined;
+  }
+
+  const wrapped=(req,res)=>{
+    let pathname='';
+    try{pathname=new URL(req.url,`http://${req.headers.host||'localhost'}`).pathname}catch{}
+
+    if(req.method==='GET'&&pathname==='/pwa/manifest.webmanifest'){
+      send(res,200,'application/manifest+json; charset=utf-8',manifest,'no-cache');
+      return;
+    }
+    if(req.method==='GET'&&pathname==='/pwa/icon-192.png'){
+      send(res,200,'image/png',icon192,'public, max-age=86400');
+      return;
+    }
+    if(req.method==='GET'&&pathname==='/pwa/icon-512.png'){
+      send(res,200,'image/png',icon512,'public, max-age=86400');
+      return;
+    }
+
+    return requestListener?.(req,res);
+  };
+
+  return serverOptions===undefined
+    ? previousCreateServer(wrapped)
+    : previousCreateServer(serverOptions,wrapped);
+};
