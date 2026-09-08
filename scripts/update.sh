@@ -13,6 +13,14 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
+# Bestaande installaties migreer je eenmalig van de oude lokale ntfy-link naar
+# het publieke HTTPS Security Center. Andere handmatig ingestelde waarden blijven
+# bewust onaangetast.
+if grep -qx 'NOTIFY_DASHBOARD_URL=http://192\.168\.178\.23:8090' .env; then
+  sed -i 's#^NOTIFY_DASHBOARD_URL=http://192\.168\.178\.23:8090$#NOTIFY_DASHBOARD_URL=https://security.pascalvz.nl#' .env
+  echo 'ntfy-dashboardlink gemigreerd naar https://security.pascalvz.nl'
+fi
+
 # Frigate kan zijn eigen gemounte configuratie aanpassen. Een lokale wijziging
 # daarin mag blijven staan; Git stopt zelf als een inkomende update ermee botst.
 if ! git diff --quiet -- . ':(exclude)frigate/config.yml' ||
