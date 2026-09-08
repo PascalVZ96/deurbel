@@ -133,8 +133,26 @@ function sendHtml(res, status, body) {
   res.end(data);
 }
 
-function loginPage(message = '') {
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+function safeNext(value = '/') {
+  const raw = String(value || '/').trim();
+  if (!raw.startsWith('/') || raw.startsWith('//') || /[\r\n]/.test(raw)) return '/';
+  try {
+    const parsed = new URL(raw, 'http://security.local');
+    if (parsed.origin !== 'http://security.local') return '/';
+    if (parsed.pathname === '/login' || parsed.pathname === '/logout') return '/';
+    return parsed.pathname + parsed.search + parsed.hash;
+  } catch {
+    return '/';
+  }
+}
+
+function loginPage(message = '', next = '/') {
   const messageHtml = message ? `<div class="message">${escapeHtml(message)}</div>` : '';
+  const action = '/login?next=' + encodeURIComponent(safeNext(next));
   return `<!doctype html>
 <html lang="nl">
 <head>
@@ -157,7 +175,7 @@ label{display:block;font-size:12px;color:#b7c2d0;font-weight:750;margin:13px 0 7
 <div class="title">Welkom terug</div>
 <div class="sub">Log in om je camera's, AI-meldingen en opnames te bekijken.</div>
 ${messageHtml}
-<form method="post" action="/login" autocomplete="on">
+<form method="post" action="${escapeHtml(action)}" autocomplete="on">
 <label for="username">Gebruikersnaam</label>
 <input id="username" name="username" type="text" autocomplete="username" required autofocus>
 <label for="password">Wachtwoord</label>
@@ -172,10 +190,6 @@ ${messageHtml}
 
 function setupPage() {
   return `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Security Center configureren</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#090d12;color:#f5f7fb;font-family:system-ui;padding:24px}.box{max-width:640px;border:1px solid #26303d;background:#111720;padding:28px;border-radius:20px}code{background:#0b1016;padding:2px 6px;border-radius:6px;color:#cfe2ff}p{line-height:1.6;color:#aeb9c8}</style></head><body><div class="box"><h1>Login nog niet geconfigureerd</h1><p>Vul <code>DASHBOARD_USERNAME</code>, <code>DASHBOARD_PASSWORD</code> en een willekeurige <code>DASHBOARD_SESSION_SECRET</code> van minimaal 32 tekens in je <code>.env</code> in en herstart daarna de container.</p></div></body></html>`;
-}
-
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 }
 
 async function readForm(req) {
@@ -193,6 +207,20 @@ function redirect(res, location, headers = {}) {
   setSecurityHeaders(res);
   res.writeHead(303, { Location: location, 'Cache-Control':'no-store', ...headers });
   res.end();
+}
+
+function sendSession(res) {
+  const data = Buffer.from(JSON.stringify({
+    authenticated:true,
+    username:config.username,
+  }));
+  setSecurityHeaders(res);
+  res.writeHead(200, {
+    'Content-Type':'application/json; charset=utf-8',
+    'Content-Length':data.length,
+    'Cache-Control':'no-store',
+  });
+  res.end(data);
 }
 
 function frigateUpstreamPath(requestUrl = '/') {
@@ -312,14 +340,17 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && url.pathname === '/login') {
-    if (validSession(req)) redirect(res, '/');
-    else sendHtml(res, 200, loginPage());
+    const next = safeNext(url.searchParams.get('next') || '/');
+    if (validSession(req)) redirect(res, next);
+    else sendHtml(res, 200, loginPage('', next));
     return;
   }
 
   if (req.method === 'POST' && url.pathname === '/login') {
+    const next = safeNext(url.searchParams.get('next') || '/');
+
     if (!loginAllowed(req)) {
-      sendHtml(res, 429, loginPage('Te veel mislukte pogingen. Probeer het over ongeveer 15 minuten opnieuw.'));
+      sendHtml(res, 429, loginPage('Te veel mislukte pogingen. Probeer het over ongeveer 15 minuten opnieuw.', next));
       return;
     }
 
@@ -330,17 +361,17 @@ const server = http.createServer(async (req, res) => {
 
       if (!usernameOk || !passwordOk) {
         registerFailedLogin(req);
-        sendHtml(res, 401, loginPage('Gebruikersnaam of wachtwoord is niet juist.'));
+        sendHtml(res, 401, loginPage('Gebruikersnaam of wachtwoord is niet juist.', next));
         return;
       }
 
       clearLoginFailures(req);
       const secure = cookieSecure(req) ? '; Secure' : '';
-      redirect(res, '/', {
+      redirect(res, next, {
         'Set-Cookie': `${SESSION_COOKIE}=${createSession()}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.round(config.sessionHours * 3600)}${secure}`,
       });
     } catch (error) {
-      sendHtml(res, 400, loginPage(error.message));
+      sendHtml(res, 400, loginPage(error.message, next));
     }
     return;
   }
@@ -363,8 +394,14 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(401, { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'no-store' });
       res.end(JSON.stringify({ ok:false, error:'Niet ingelogd' }));
     } else {
-      redirect(res, '/login');
+      const next = safeNext(req.url || '/');
+      redirect(res, '/login?next=' + encodeURIComponent(next));
     }
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/session') {
+    sendSession(res);
     return;
   }
 
