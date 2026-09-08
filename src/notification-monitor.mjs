@@ -16,7 +16,7 @@ const cfg = {
 
   dashboard: String(
     process.env.NOTIFY_DASHBOARD_URL ||
-    'http://192.168.178.23:8090'
+    'https://security.pascalvz.nl'
   ).replace(/\/+$/,''),
 
   pollMs: Math.max(
@@ -417,7 +417,7 @@ if(!cfg.topic){
   );
 }else{
   console.log(
-    `[notify] Actief · poll ${cfg.pollMs} ms · LSC=${cfg.lsc} · Eufy=${cfg.eufy} · PetFeeder=${cfg.petfeeder}`
+    `[notify] Actief · dashboard ${cfg.dashboard} · poll ${cfg.pollMs} ms · LSC=${cfg.lsc} · Eufy=${cfg.eufy} · PetFeeder=${cfg.petfeeder}`
   );
 
   await cycle();
