@@ -3,6 +3,9 @@ import path from 'node:path';
 import http from 'node:http';
 
 const dataDir = process.env.DATA_DIR || '/data';
+const recordingsDir = process.env.RECORDINGS_DIR || '/recordings';
+const backupDir = process.env.SPOOKY_BACKUP_DIR || path.join(recordingsDir, 'spooky-logbook-backups');
+const backupRetentionDays = Math.max(7, Number(process.env.SPOOKY_BACKUP_RETENTION_DAYS || 90));
 const frigateUrl = String(
   process.env.FRIGATE_URL || 'http://127.0.0.1:5000'
 ).replace(/\/+$/, '');
@@ -37,11 +40,83 @@ function loadState(){
 
 let state = loadState();
 let busy = false;
+let backupPrimed = false;
+let lastBackupAt = null;
+let lastBackupError = null;
+
+function atomicWrite(file, text){
+  const tmp = file + '.tmp';
+  fs.writeFileSync(tmp, text);
+  fs.renameSync(tmp, file);
+}
 
 function saveState(){
-  const tmp = logbookFile + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
-  fs.renameSync(tmp, logbookFile);
+  atomicWrite(logbookFile, JSON.stringify(state, null, 2));
+}
+
+function amsterdamDateKey(date = new Date()){
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone:'Europe/Amsterdam',
+    year:'numeric',
+    month:'2-digit',
+    day:'2-digit'
+  }).formatToParts(date);
+
+  const values = Object.fromEntries(
+    parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value])
+  );
+
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function pruneBackups(){
+  const files = fs.readdirSync(backupDir)
+    .filter(name => /^spooky-logbook-\d{4}-\d{2}-\d{2}\.json$/.test(name))
+    .sort()
+    .reverse();
+
+  for (const name of files.slice(backupRetentionDays)) {
+    try {
+      fs.unlinkSync(path.join(backupDir, name));
+    } catch {}
+  }
+}
+
+function writeBackup(){
+  try {
+    fs.mkdirSync(backupDir, { recursive:true });
+    const text = JSON.stringify(state, null, 2);
+    const dateKey = amsterdamDateKey();
+
+    atomicWrite(path.join(backupDir, 'spooky-logbook-latest.json'), text);
+    atomicWrite(path.join(backupDir, `spooky-logbook-${dateKey}.json`), text);
+    pruneBackups();
+
+    lastBackupAt = new Date().toISOString();
+    lastBackupError = null;
+    backupPrimed = true;
+  } catch (error) {
+    lastBackupError = error.message;
+    console.warn(`[spooky-logbook] Backup mislukt: ${error.message}`);
+  }
+}
+
+function backupSnapshot(){
+  let copies = 0;
+  try {
+    copies = fs.readdirSync(backupDir)
+      .filter(name => /^spooky-logbook-\d{4}-\d{2}-\d{2}\.json$/.test(name))
+      .length;
+  } catch {}
+
+  return {
+    available:lastBackupError === null && backupPrimed,
+    directory:backupDir,
+    copies,
+    retentionDays:backupRetentionDays,
+    lastBackupAt,
+    lastError:lastBackupError
+  };
 }
 
 function loadFallback(){
@@ -201,6 +276,10 @@ async function collect(){
     state.lastError = null;
     saveState();
 
+    if (changed || !backupPrimed) {
+      writeBackup();
+    }
+
     if (added || updated) {
       console.log(
         `[spooky-logbook] ${added} nieuw, ${updated} bijgewerkt · totaal ${state.events.length}`
@@ -225,8 +304,17 @@ function publicSnapshot(){
     lastPollAt:state.lastPollAt,
     lastSuccessAt:state.lastSuccessAt,
     lastError:state.lastError,
+    backup:backupSnapshot(),
     events:state.events
   };
+}
+
+function exportBody(){
+  return JSON.stringify({
+    exportedAt:new Date().toISOString(),
+    source:'Security Center · Spooky-logboek',
+    ...publicSnapshot()
+  }, null, 2);
 }
 
 const previousCreateServer = http.createServer.bind(http);
@@ -254,6 +342,19 @@ http.createServer = function spookyLogbookCreateServer(options, requestListener)
         res.end(body);
         return;
       }
+
+      if (req.method === 'GET' && url.pathname === '/api/spooky/logbook/export') {
+        const body = exportBody();
+        const filename = `spooky-logbook-${amsterdamDateKey()}.json`;
+        res.writeHead(200, {
+          'Content-Type':'application/json; charset=utf-8',
+          'Content-Length':Buffer.byteLength(body),
+          'Content-Disposition':`attachment; filename="${filename}"`,
+          'Cache-Control':'no-store'
+        });
+        res.end(body);
+        return;
+      }
     } catch {}
 
     return actualListener(req, res);
@@ -265,7 +366,7 @@ http.createServer = function spookyLogbookCreateServer(options, requestListener)
 };
 
 console.log(
-  `[spooky-logbook] Actief · ${state.events.length} opgeslagen gebeurtenissen · poll ${pollMs} ms`
+  `[spooky-logbook] Actief · ${state.events.length} opgeslagen gebeurtenissen · poll ${pollMs} ms · backup ${backupDir}`
 );
 
 void collect();
