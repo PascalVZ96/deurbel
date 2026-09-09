@@ -163,12 +163,12 @@ const spookyStatsInjection = String.raw`
   }
 
   function isSpooky(item){
-    return item?.source === 'petfeeder' && /\\bspooky\\b/i.test(itemText(item));
+    return item?.source === 'petfeeder' && /\bspooky\b/i.test(itemText(item));
   }
 
   function isEating(item){
     const text = String(item?.title || item?.shortSummary || '').toLowerCase();
-    return /\\beet\\b|\\beten\\b|eetmoment|voerhouding/.test(text);
+    return /\beet\b|\beten\b|eetmoment|voerhouding/.test(text);
   }
 
   function startOfDay(ms = Date.now()){
@@ -294,7 +294,7 @@ const spookyStatsInjection = String.raw`
 
 fs.readFileSync = function spookyStatsReadFileSync(file, options) {
   const data = previousReadFileSync(file, options);
-  const normalized = String(file).replaceAll('\\\\', '/');
+  const normalized = String(file).replaceAll('\\', '/');
 
   if (!normalized.endsWith('/public/security.html')) return data;
 
@@ -303,7 +303,7 @@ fs.readFileSync = function spookyStatsReadFileSync(file, options) {
   let text = Buffer.isBuffer(data) ? data.toString('utf8') : String(data);
 
   if (!text.includes('id="spooky-stats-style"')) {
-    text = text.replace('</body>', spookyStatsInjection + '\\n</body>');
+    text = text.replace('</body>', spookyStatsInjection + '\n</body>');
   }
 
   return returnBuffer ? Buffer.from(text, 'utf8') : text;
