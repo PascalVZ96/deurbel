@@ -15,5 +15,6 @@ await import('./spooky-theme-align.mjs');
 await import('./pwa-root-register.mjs');
 await import('./manifest-auth-fix.mjs');
 await import('./pwa-diagnostics.mjs');
+await import('./app-notification-center.mjs');
 await import('./spooky-logbook.mjs');
 await import('./security-internal.mjs');
