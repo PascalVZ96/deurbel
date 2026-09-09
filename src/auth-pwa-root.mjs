@@ -19,6 +19,22 @@ self.addEventListener('fetch', event => {
 });
 `;
 
+const launchPage = `<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#090d12">
+<meta name="robots" content="noindex,nofollow">
+<title>Security Center</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#090d12;color:#eef4fb;font-family:system-ui,-apple-system,sans-serif}.box{text-align:center;padding:24px}.icon{font-size:38px}.text{margin-top:10px;font-weight:800}</style>
+</head>
+<body>
+<main class="box"><div class="icon">🔐</div><div class="text">Security Center openen…</div></main>
+<script>location.replace('/');</script>
+</body>
+</html>`;
+
 function sendServiceWorker(req, res) {
   const body = Buffer.from(serviceWorker);
   res.writeHead(200, {
@@ -26,6 +42,20 @@ function sendServiceWorker(req, res) {
     'Content-Length':body.length,
     'Cache-Control':'no-store',
     'X-Content-Type-Options':'nosniff',
+  });
+  if (req.method === 'HEAD') res.end();
+  else res.end(body);
+}
+
+function sendLaunchPage(req, res) {
+  const body = Buffer.from(launchPage);
+  res.writeHead(200, {
+    'Content-Type':'text/html; charset=utf-8',
+    'Content-Length':body.length,
+    'Cache-Control':'no-store',
+    'X-Content-Type-Options':'nosniff',
+    'X-Frame-Options':'DENY',
+    'Referrer-Policy':'no-referrer',
   });
   if (req.method === 'HEAD') res.end();
   else res.end(body);
@@ -45,6 +75,11 @@ http.createServer = function authPwaRootCreateServer(options, listener) {
 
     if ((req.method === 'GET' || req.method === 'HEAD') && pathname === '/service-worker.js') {
       sendServiceWorker(req, res);
+      return;
+    }
+
+    if ((req.method === 'GET' || req.method === 'HEAD') && pathname === '/pwa/start') {
+      sendLaunchPage(req, res);
       return;
     }
 
