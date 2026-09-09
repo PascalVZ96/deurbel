@@ -7,7 +7,7 @@ const manifest = JSON.stringify({
   name:'Pascal Security Center',
   short_name:'Security',
   description:'Camera’s, AI-meldingen, Spooky-statistieken en opnames in één Security Center.',
-  start_url:'/',
+  start_url:'/pwa/start',
   scope:'/',
   display:'standalone',
   orientation:'any',
