@@ -8,6 +8,7 @@ await import('./spooky-records.mjs');
 await import('./spooky-logbook-tools.mjs');
 await import('./frigate-route.mjs');
 await import('./session-deeplink-ui.mjs');
+await import('./pwa-manifest-current.mjs');
 await import('./pwa-install-fix.mjs');
 await import('./mobile-pwa.mjs');
 await import('./spooky-page.mjs');
