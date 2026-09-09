@@ -10,20 +10,18 @@ const spookyStatsInjection = String.raw`
   gap:12px;
   margin-bottom:14px;
 }
-
-#spookyStats .spooky-stat{
+#spookyStats .spooky-stat,
+#spookyStats .spooky-week-card{
   padding:16px;
   border:1px solid var(--line);
   border-radius:16px;
   background:var(--panel);
 }
-
 #spookyStats .spooky-stat-label{
   color:var(--muted);
   font-size:.82rem;
   font-weight:700;
 }
-
 #spookyStats .spooky-stat-value{
   margin-top:6px;
   font-size:1.7rem;
@@ -31,21 +29,12 @@ const spookyStatsInjection = String.raw`
   font-weight:830;
   letter-spacing:-.03em;
 }
-
 #spookyStats .spooky-stat-sub{
   margin-top:5px;
   color:var(--muted);
   font-size:.78rem;
   line-height:1.4;
 }
-
-#spookyStats .spooky-week-card{
-  padding:16px;
-  border:1px solid var(--line);
-  border-radius:16px;
-  background:var(--panel);
-}
-
 #spookyStats .spooky-week-head{
   display:flex;
   align-items:center;
@@ -53,16 +42,11 @@ const spookyStatsInjection = String.raw`
   gap:12px;
   margin-bottom:14px;
 }
-
-#spookyStats .spooky-week-title{
-  font-weight:800;
-}
-
+#spookyStats .spooky-week-title{font-weight:800}
 #spookyStats .spooky-week-sub{
   color:var(--muted);
   font-size:.78rem;
 }
-
 #spookyStats .spooky-bars{
   display:grid;
   grid-template-columns:repeat(7,minmax(0,1fr));
@@ -70,7 +54,6 @@ const spookyStatsInjection = String.raw`
   align-items:end;
   min-height:145px;
 }
-
 #spookyStats .spooky-day{
   display:grid;
   grid-template-rows:1fr auto auto;
@@ -78,66 +61,42 @@ const spookyStatsInjection = String.raw`
   min-width:0;
   text-align:center;
 }
-
 #spookyStats .spooky-bar-wrap{
   height:96px;
   display:flex;
   align-items:flex-end;
   justify-content:center;
 }
-
 #spookyStats .spooky-bar{
   width:min(100%,36px);
   min-height:4px;
   border-radius:9px 9px 4px 4px;
   background:linear-gradient(180deg,#86b9ff,#4d7fba);
 }
-
 #spookyStats .spooky-day-count{
   font-size:.8rem;
   font-weight:800;
 }
-
 #spookyStats .spooky-day-label{
   color:var(--muted);
   font-size:.72rem;
   text-transform:capitalize;
 }
-
 #spookyStats .spooky-empty{
   padding:14px 0 2px;
   color:var(--muted);
   font-size:.85rem;
   line-height:1.5;
 }
-
 @media(max-width:900px){
-  #spookyStats .spooky-stats-grid{
-    grid-template-columns:repeat(2,minmax(0,1fr));
-  }
+  #spookyStats .spooky-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-
 @media(max-width:520px){
-  #spookyStats .spooky-stats-grid{
-    grid-template-columns:1fr 1fr;
-    gap:8px;
-  }
-
-  #spookyStats .spooky-stat{
-    padding:12px;
-  }
-
-  #spookyStats .spooky-stat-value{
-    font-size:1.4rem;
-  }
-
-  #spookyStats .spooky-bars{
-    gap:5px;
-  }
-
-  #spookyStats .spooky-bar-wrap{
-    height:78px;
-  }
+  #spookyStats .spooky-stats-grid{grid-template-columns:1fr 1fr;gap:8px}
+  #spookyStats .spooky-stat{padding:12px}
+  #spookyStats .spooky-stat-value{font-size:1.4rem}
+  #spookyStats .spooky-bars{gap:5px}
+  #spookyStats .spooky-bar-wrap{height:78px}
 }
 </style>
 <script id="spooky-stats-script">
@@ -146,62 +105,41 @@ const spookyStatsInjection = String.raw`
 
   function ensurePanel(){
     if(document.getElementById('spookyStats')) return;
-
     const anchor = document.querySelector('#cameraOverview');
     if(!anchor) return;
 
     const section = document.createElement('section');
     section.id = 'spookyStats';
     section.className = 'section';
-    section.innerHTML = `
-      <div class="section-head">
-        <div>
-          <h2>🐾 Spooky-statistieken</h2>
-          <p>Bezoeken en eetmomenten bij de Pet Feeder op basis van AI-meldingen.</p>
-        </div>
-        <a class="btn dark" href="#aiHistory">Bekijk AI-meldingen</a>
-      </div>
-
-      <div class="spooky-stats-grid">
-        <article class="spooky-stat">
-          <div class="spooky-stat-label">Bezoeken vandaag</div>
-          <div id="spookyTodayVisits" class="spooky-stat-value">-</div>
-          <div class="spooky-stat-sub">herkende Spooky-momenten</div>
-        </article>
-
-        <article class="spooky-stat">
-          <div class="spooky-stat-label">Eetmomenten vandaag</div>
-          <div id="spookyTodayEating" class="spooky-stat-value">-</div>
-          <div class="spooky-stat-sub">AI-titel bevat eten</div>
-        </article>
-
-        <article class="spooky-stat">
-          <div class="spooky-stat-label">Deze week</div>
-          <div id="spookyWeekVisits" class="spooky-stat-value">-</div>
-          <div id="spookyWeekEating" class="spooky-stat-sub">-</div>
-        </article>
-
-        <article class="spooky-stat">
-          <div class="spooky-stat-label">Laatste bezoek</div>
-          <div id="spookyLastTime" class="spooky-stat-value" style="font-size:1.15rem">-</div>
-          <div id="spookyLastActivity" class="spooky-stat-sub">Nog geen gegevens</div>
-        </article>
-      </div>
-
-      <div class="spooky-week-card">
-        <div class="spooky-week-head">
-          <div>
-            <div class="spooky-week-title">Laatste 7 dagen</div>
-            <div class="spooky-week-sub">Aantal herkende bezoeken per dag</div>
-          </div>
-          <span id="spookyDataCount" class="badge">0 gebeurtenissen</span>
-        </div>
-        <div id="spookyBars" class="spooky-bars"></div>
-        <div id="spookyEmpty" class="spooky-empty" hidden>
-          Vanaf nieuwe AI-gebeurtenissen waarin Spooky bij naam wordt herkend, worden de statistieken automatisch opgebouwd.
-        </div>
-      </div>
-    `;
+    section.innerHTML =
+      '<div class="section-head">' +
+        '<div><h2>🐾 Spooky-statistieken</h2>' +
+        '<p>Bezoeken en eetmomenten bij de Pet Feeder op basis van AI-meldingen.</p></div>' +
+        '<a class="btn dark" href="#aiHistory">Bekijk AI-meldingen</a>' +
+      '</div>' +
+      '<div class="spooky-stats-grid">' +
+        '<article class="spooky-stat"><div class="spooky-stat-label">Bezoeken vandaag</div>' +
+        '<div id="spookyTodayVisits" class="spooky-stat-value">-</div>' +
+        '<div class="spooky-stat-sub">herkende Spooky-momenten</div></article>' +
+        '<article class="spooky-stat"><div class="spooky-stat-label">Eetmomenten vandaag</div>' +
+        '<div id="spookyTodayEating" class="spooky-stat-value">-</div>' +
+        '<div class="spooky-stat-sub">AI herkent eten</div></article>' +
+        '<article class="spooky-stat"><div class="spooky-stat-label">Deze week</div>' +
+        '<div id="spookyWeekVisits" class="spooky-stat-value">-</div>' +
+        '<div id="spookyWeekEating" class="spooky-stat-sub">-</div></article>' +
+        '<article class="spooky-stat"><div class="spooky-stat-label">Laatste bezoek</div>' +
+        '<div id="spookyLastTime" class="spooky-stat-value" style="font-size:1.15rem">-</div>' +
+        '<div id="spookyLastActivity" class="spooky-stat-sub">Nog geen gegevens</div></article>' +
+      '</div>' +
+      '<div class="spooky-week-card">' +
+        '<div class="spooky-week-head"><div><div class="spooky-week-title">Laatste 7 dagen</div>' +
+        '<div class="spooky-week-sub">Aantal herkende bezoeken per dag</div></div>' +
+        '<span id="spookyDataCount" class="badge">0 gebeurtenissen</span></div>' +
+        '<div id="spookyBars" class="spooky-bars"></div>' +
+        '<div id="spookyEmpty" class="spooky-empty" hidden>' +
+        'Vanaf nieuwe AI-gebeurtenissen waarin Spooky bij naam wordt herkend, worden de statistieken automatisch opgebouwd.' +
+        '</div>' +
+      '</div>';
 
     anchor.insertAdjacentElement('afterend', section);
   }
@@ -261,7 +199,6 @@ const spookyStatsInjection = String.raw`
   function renderBars(items){
     const root = document.getElementById('spookyBars');
     if(!root) return;
-
     const days = [];
     const today = startOfDay();
 
@@ -276,25 +213,19 @@ const spookyStatsInjection = String.raw`
     }
 
     const max = Math.max(1,...days.map(day => day.count));
-
     root.innerHTML = days.map(day => {
       const height = day.count ? Math.max(12, Math.round((day.count / max) * 96)) : 4;
       const label = new Date(day.start).toLocaleDateString('nl-NL',{weekday:'short'}).replace('.','');
-      return `
-        <div class="spooky-day">
-          <div class="spooky-bar-wrap">
-            <div class="spooky-bar" style="height:${height}px" title="${day.count} bezoek(en)"></div>
-          </div>
-          <div class="spooky-day-count">${day.count}</div>
-          <div class="spooky-day-label">${label}</div>
-        </div>
-      `;
+      return '<div class="spooky-day">' +
+        '<div class="spooky-bar-wrap"><div class="spooky-bar" style="height:' + height + 'px" title="' + day.count + ' bezoek(en)"></div></div>' +
+        '<div class="spooky-day-count">' + day.count + '</div>' +
+        '<div class="spooky-day-label">' + label + '</div>' +
+        '</div>';
     }).join('');
   }
 
   function render(items){
     ensurePanel();
-
     const spooky = items
       .filter(isSpooky)
       .sort((a,b) => timeMs(b.createdAt ?? b.sortTime) - timeMs(a.createdAt ?? a.sortTime));
@@ -302,7 +233,6 @@ const spookyStatsInjection = String.raw`
     const now = Date.now();
     const today = startOfDay(now);
     const week = startOfWeek(now);
-
     const todayItems = spooky.filter(item => timeMs(item.createdAt ?? item.sortTime) >= today);
     const weekItems = spooky.filter(item => timeMs(item.createdAt ?? item.sortTime) >= week);
     const todayEating = todayItems.filter(isEating);
@@ -318,28 +248,26 @@ const spookyStatsInjection = String.raw`
     setText('spookyTodayVisits', String(todayItems.length));
     setText('spookyTodayEating', String(todayEating.length));
     setText('spookyWeekVisits', String(weekItems.length));
-    setText('spookyWeekEating', `${weekEating.length} eetmoment${weekEating.length === 1 ? '' : 'en'} deze week`);
+    setText('spookyWeekEating', String(weekEating.length) + ' eetmoment' + (weekEating.length === 1 ? '' : 'en') + ' deze week');
     setText('spookyLastTime', formatLast(latestMs));
     setText('spookyLastActivity', latest?.title || 'Nog geen Spooky-gebeurtenis');
-    setText('spookyDataCount', `${spooky.length} gebeurtenis${spooky.length === 1 ? '' : 'sen'}`);
+    setText('spookyDataCount', String(spooky.length) + ' gebeurtenis' + (spooky.length === 1 ? '' : 'sen'));
 
     const empty = document.getElementById('spookyEmpty');
     if(empty) empty.hidden = spooky.length > 0;
-
     renderBars(spooky);
   }
 
   async function refresh(){
     if(refreshBusy || document.hidden) return;
     refreshBusy = true;
-
     try{
       const response = await fetch('/api/ai/history?limit=100',{cache:'no-store'});
-      if(!response.ok) throw new Error(`HTTP ${response.status}`);
+      if(!response.ok) throw new Error('HTTP ' + response.status);
       const data = await response.json();
       render(Array.isArray(data?.history) ? data.history : []);
     }catch(error){
-      console.warn(`[spooky-stats] ${error.message}`);
+      console.warn('[spooky-stats] ' + error.message);
       ensurePanel();
       const empty = document.getElementById('spookyEmpty');
       if(empty){
@@ -353,17 +281,12 @@ const spookyStatsInjection = String.raw`
 
   ensurePanel();
   void refresh();
-
   window.addEventListener('security:viewchange', () => {
-    if(typeof activeSecurityView === 'undefined' || activeSecurityView === 'overview'){
-      void refresh();
-    }
+    if(typeof activeSecurityView === 'undefined' || activeSecurityView === 'overview') void refresh();
   });
-
   document.addEventListener('visibilitychange', () => {
     if(!document.hidden) void refresh();
   });
-
   setInterval(() => { void refresh(); }, 30000);
 })();
 </script>
@@ -371,7 +294,7 @@ const spookyStatsInjection = String.raw`
 
 fs.readFileSync = function spookyStatsReadFileSync(file, options) {
   const data = previousReadFileSync(file, options);
-  const normalized = String(file).replaceAll('\\', '/');
+  const normalized = String(file).replaceAll('\\\\', '/');
 
   if (!normalized.endsWith('/public/security.html')) return data;
 
@@ -380,7 +303,7 @@ fs.readFileSync = function spookyStatsReadFileSync(file, options) {
   let text = Buffer.isBuffer(data) ? data.toString('utf8') : String(data);
 
   if (!text.includes('id="spooky-stats-style"')) {
-    text = text.replace('</body>', spookyStatsInjection + '\n</body>');
+    text = text.replace('</body>', spookyStatsInjection + '\\n</body>');
   }
 
   return returnBuffer ? Buffer.from(text, 'utf8') : text;
