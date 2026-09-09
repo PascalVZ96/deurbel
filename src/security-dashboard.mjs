@@ -1,6 +1,7 @@
 await import('./theme-switch.mjs');
 await import('./overview-polish.mjs');
 await import('./spooky-stats.mjs');
+await import('./spooky-week-summary.mjs');
 await import('./spooky-rhythm.mjs');
 await import('./spooky-hourly-heatmap.mjs');
 await import('./spooky-records.mjs');
