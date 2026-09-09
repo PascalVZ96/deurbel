@@ -6,6 +6,8 @@ const replacement = String.raw`
 (async () => {
   const legacySuffix = '/pwa/service-worker.js';
   const rootScript = '/service-worker.js';
+  const reloadKey = 'security-pwa-root-ready-reload';
+  const hadController = !!navigator.serviceWorker.controller;
 
   try {
     const registrations = await navigator.serviceWorker.getRegistrations();
@@ -22,15 +24,26 @@ const replacement = String.raw`
       console.log('[pwa] Oude service worker gevonden; migreren naar root-service-worker.');
       await legacyRegistration.unregister();
       await navigator.serviceWorker.register(rootScript, {scope:'/'});
+      await navigator.serviceWorker.ready;
 
-      if (!sessionStorage.getItem('security-pwa-sw-migrated')) {
-        sessionStorage.setItem('security-pwa-sw-migrated', '1');
+      if (!sessionStorage.getItem(reloadKey)) {
+        sessionStorage.setItem(reloadKey, '1');
         location.reload();
         return;
       }
     } else {
       await navigator.serviceWorker.register(rootScript, {scope:'/'});
-      sessionStorage.removeItem('security-pwa-sw-migrated');
+      await navigator.serviceWorker.ready;
+
+      if (!hadController && !sessionStorage.getItem(reloadKey)) {
+        sessionStorage.setItem(reloadKey, '1');
+        location.reload();
+        return;
+      }
+    }
+
+    if (navigator.serviceWorker.controller) {
+      sessionStorage.removeItem(reloadKey);
     }
   } catch (error) {
     console.warn('[pwa] Service worker migratie/registratie mislukt:', error.message);
