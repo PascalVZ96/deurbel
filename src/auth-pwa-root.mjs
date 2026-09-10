@@ -13,7 +13,7 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   event.respondWith(fetch(request).catch(() => new Response(OFFLINE_HTML, {
-    status:503,
+    status:200,
     headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}
   })));
 });
