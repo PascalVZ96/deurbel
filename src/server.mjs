@@ -174,13 +174,24 @@ async function applyLowEncoding() {
   }
 }
 
+function scheduleEufyReconnect(delay = 3000) {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectEufy();
+  }, delay);
+}
+
 function connectEufy() {
   if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
 
   console.log(`Verbinden met ${config.wsUrl} ...`);
-  ws = new WebSocket(config.wsUrl);
+  const socket = new WebSocket(config.wsUrl);
+  ws = socket;
 
-  ws.addEventListener('open', () => {
+  socket.addEventListener('open', () => {
+    if (ws !== socket) return;
+
     console.log('Verbonden met eufy-security-ws');
     state.wsConnected = true;
     state.listening = false;
@@ -194,7 +205,9 @@ function connectEufy() {
     }
   });
 
-  ws.addEventListener('message', (message) => {
+  socket.addEventListener('message', (message) => {
+    if (ws !== socket) return;
+
     let data;
     try {
       const raw = typeof message.data === 'string' ? message.data : message.data.toString();
@@ -207,7 +220,9 @@ function connectEufy() {
     handleEufyMessage(data);
   });
 
-  ws.addEventListener('close', () => {
+  socket.addEventListener('close', () => {
+    if (ws !== socket) return;
+
     console.warn('Verbinding met eufy-security-ws verbroken');
     state.wsConnected = false;
     state.listening = false;
@@ -220,11 +235,22 @@ function connectEufy() {
       pendingRequests.delete(id);
     }
 
-    if (reconnectTimer) clearTimeout(reconnectTimer);
-    reconnectTimer = setTimeout(connectEufy, 3000);
+    scheduleEufyReconnect();
   });
 
-  ws.addEventListener('error', () => setError('WebSocket-fout met eufy-security-ws'));
+  socket.addEventListener('error', () => {
+    if (ws !== socket) return;
+
+    setError('WebSocket-fout met eufy-security-ws');
+    state.wsConnected = false;
+    state.listening = false;
+    state.eufyRunning = false;
+
+    // Sommige WebSocket-fouten leveren niet betrouwbaar een 'close'-event op.
+    // Forceer daarom het sluiten en plan zelf ook een reconnect.
+    try { socket.close(); } catch {}
+    scheduleEufyReconnect();
+  });
 }
 
 function getBuffer(value) {
