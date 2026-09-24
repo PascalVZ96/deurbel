@@ -4,14 +4,14 @@ import { spawn } from 'node:child_process';
 const config = {
   port: Number(process.env.LSC_PROXY_PORT || 8093),
   rtspUrl: String(process.env.LSC_RTSP_URL || '').trim(),
-  fps: Math.max(1, Math.min(15, Number(process.env.LSC_MJPEG_FPS || 8))),
+  fps: Math.max(1, Math.min(15, Number(process.env.LSC_MJPEG_FPS || 6))),
   quality: Math.max(2, Math.min(31, Number(process.env.LSC_MJPEG_QUALITY || 5))),
   idleStopSeconds: Math.max(0, Number(process.env.LSC_IDLE_STOP_SECONDS || 10)),
   restartDelayMs: Math.max(500, Number(process.env.LSC_RESTART_DELAY_MS || 2000)),
 };
 
 let renderMode =
-  String(process.env.LSC_DEFAULT_MODE || 'enhanced').toLowerCase() === 'normal'
+  String(process.env.LSC_DEFAULT_MODE || 'normal').toLowerCase() === 'normal'
     ? 'normal'
     : 'enhanced';
 
