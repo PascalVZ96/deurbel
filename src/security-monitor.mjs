@@ -268,6 +268,28 @@ function getEufyAiStatus() {
 }
 
 
+// Frigate objects are useful even when no Gemini-generated description exists.
+function frigateReviewObjects(review) {
+  const input = review?.data?.objects ?? review?.objects ?? [];
+  const list = Array.isArray(input) ? input : [input];
+  return [...new Set(list.filter(x => typeof x === 'string' && x.trim())
+    .map(x => x.trim().toLowerCase()))].slice(0,8);
+}
+function frigateObjectName(name) {
+  return ({cat:'kat',person:'persoon',dog:'hond',car:'auto',
+    bicycle:'fiets',bird:'vogel',package:'pakket'})[name] || name;
+}
+function frigateDetectionTitle(objects) {
+  if (!objects.length) return null;
+  const named = objects.map(frigateObjectName);
+  return named.map((item,i) => i === 0 ? item[0].toUpperCase()+item.slice(1) : item)
+    .join(' en ') + ' gedetecteerd';
+}
+function frigateDetectionSummary(objects) {
+  return 'Frigate heeft ' + objects.map(frigateObjectName).join(' en ') +
+    ' lokaal herkend. Er is nog geen Gemini-beschrijving gemaakt.';
+}
+
 async function getPetFeederAiStatus() {
   try {
     const response = await fetch(
@@ -300,42 +322,47 @@ async function getPetFeederAiStatus() {
     });
 
     const latest = reviews[0] || null;
-    const metadata = aiMetadataForReview(described);
+    // Native object detection remains visible even without Gemini metadata.
+    const selected = described ||
+      reviews.find(review => frigateReviewObjects(review).length > 0) || null;
+    const objects = frigateReviewObjects(selected);
+    const metadata = aiMetadataForReview(selected);
 
     return {
       frigateReachable:true,
-      aiAvailable:Boolean(described),
+      aiAvailable:Boolean(selected),
+      descriptionAvailable:Boolean(described),
+      detectionSource:described ? 'description' : 'frigate-local',
       reviewCount:reviews.length,
       latestReviewId:latest?.id || null,
 
-      reviewId:described?.id || null,
+      reviewId:selected?.id || null,
       startTime:
-        described?.start_time ??
-        described?.startTime ??
+        selected?.start_time ??
+        selected?.startTime ??
         null,
 
       endTime:
-        described?.end_time ??
-        described?.endTime ??
+        selected?.end_time ??
+        selected?.endTime ??
         null,
 
-      objects:
-        described?.data?.objects ||
-        described?.objects ||
-        [],
+      objects,
 
       title:
         metadata.title ||
-        null,
+        frigateDetectionTitle(objects),
 
       shortSummary:
         metadata.shortSummary ??
         metadata.short_summary ??
-        null,
+        (objects.length ? frigateDetectionSummary(objects) : null),
 
       scene:
         metadata.scene ||
-        null,
+        (objects.length && !described
+          ? 'Lokale objectdetectie. Een uitgebreide AI-beschrijving vereist een apart ingeschakelde Gemini-integratie.'
+          : null),
 
       confidence:
         metadata.confidence ??
@@ -432,33 +459,21 @@ async function getFrigateAiHistory(camera, limit = 40) {
 
     return reviews
       .map(review => {
-        const metadata =
-          review?.data?.metadata || {};
-
-        const title =
-          metadata.title || null;
-
-        const summary =
-          metadata.shortSummary ??
+        if (!review?.id || !/^[A-Za-z0-9._-]+$/.test(String(review.id))) return null;
+        const metadata = aiMetadataForReview(review);
+        const objects = frigateReviewObjects(review);
+        const title = metadata.title || frigateDetectionTitle(objects);
+        const summary = metadata.shortSummary ??
           metadata.short_summary ??
-          null;
+          (objects.length ? frigateDetectionSummary(objects) : null);
+        const scene = metadata.scene || null;
 
-        const scene =
-          metadata.scene || null;
-
-        if (!title && !summary && !scene) {
-          return null;
-        }
+        if (!title && !summary && !scene) return null;
 
         const startTime =
           review?.start_time ??
           review?.startTime ??
           null;
-
-        const objects =
-          review?.data?.objects ??
-          review?.objects ??
-          [];
 
         return {
           id:`${camera}:${review.id}`,
@@ -494,12 +509,7 @@ async function getFrigateAiHistory(camera, limit = 40) {
             metadata.potentialThreatLevel ??
             null,
 
-          objects:
-            Array.isArray(objects)
-              ? objects
-              : objects
-                ? [objects]
-                : [],
+          objects,
 
           thumbnailUrl:
             camera === 'petfeeder'
@@ -794,6 +804,30 @@ function getLocalCarHistory(limit = 100) {
 }
 
 
+function getEufyRecordingHistory(limit = 40) {
+  // Recordings supplied by HomeBase are activity events, NOT Gemini classifications.
+  return listRecordings()
+    .filter(item => /_eufy-original[.]mp4$/i.test(item.name))
+    .slice(0,limit)
+    .map(item => ({
+      id:'eufy:' + item.name,
+      source:'eufy',
+      sourceLabel:'Eufy Voordeur',
+      recordingFile:item.name,
+      createdAt:item.createdAt,
+      sortTime:aiHistoryTimestamp(item.createdAt),
+      title:'Deurbelopname opgeslagen',
+      shortSummary:'Opname van Eufy HomeBase. Nog niet door AI geanalyseerd.',
+      scene:null,
+      confidence:null,
+      potentialThreatLevel:null,
+      objects:[],
+      thumbnailUrl:item.thumbnailUrl,
+      videoUrl:item.videoUrl,
+      recordingType:'eufy'
+    }));
+}
+
 async function getCombinedAiHistory(limit = 60) {
   const perCamera =
     Math.max(
@@ -818,6 +852,7 @@ async function getCombinedAiHistory(limit = 60) {
 
   const eufy =
     getEufyAiHistory(perCamera);
+  const eufyRecordings = getEufyRecordingHistory(perCamera);
 
   const fallback =
     getFallbackAiHistory(perCamera);
@@ -859,12 +894,9 @@ async function getCombinedAiHistory(limit = 60) {
     );
   }
 
-  for (const item of eufy) {
-    merged.set(
-      item.id,
-      item
-    );
-  }
+  // Prefer a completed AI description if one exists for the same Eufy clip.
+  for (const item of eufyRecordings) merged.set(item.id, item);
+  for (const item of eufy) merged.set(item.id, item);
 
   return [
     ...merged.values()
