@@ -309,18 +309,6 @@ async function getPetFeederAiStatus() {
         ? raw.reviews
         : [];
 
-    const described = reviews.find(review => {
-      const metadata = aiMetadataForReview(review);
-      if (!metadata) return false;
-
-      return Boolean(
-        metadata.title ||
-        metadata.scene ||
-        metadata.shortSummary ||
-        metadata.short_summary
-      );
-    });
-
     const latest = reviews[0] || null;
     // Show the latest local detection, even if an older event has a Gemini description.
     const selected = reviews.find(review => {
