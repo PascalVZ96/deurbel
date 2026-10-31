@@ -115,25 +115,21 @@ function getDuration(file) {
 }
 
 function frameTimes(duration) {
-  const last = Math.max(0.2, duration - 0.5);
+  // Spread the configured number of images over the WHOLE clip.
+  // Previously maxFrames=3 took only the first 8/20/40 percent, meaning
+  // the person opening the door and going inside near the end was missed.
+  const start = Math.max(0, Math.min(0.7, duration * 0.08));
+  const end = Math.max(start, duration - 0.25);
+  const limit = Math.max(0, duration - 0.05);
+  const times = [];
 
-  const candidates = [
-    Math.min(0.7, duration * 0.08),
-    duration * 0.20,
-    duration * 0.40,
-    duration * 0.60,
-    duration * 0.80,
-    last,
-  ];
-
-  const unique = [];
-
-  for (const t of candidates) {
-    const n = Math.max(0, Math.min(duration - 0.05, t));
-    if (!unique.some(x => Math.abs(x - n) < 0.25)) unique.push(n);
+  for (let i = 0; i < cfg.maxFrames; i++) {
+    const t = start + (end - start) * i / (cfg.maxFrames - 1);
+    const n = Math.max(0, Math.min(limit, t));
+    if (!times.some(x => Math.abs(x - n) < 0.12)) times.push(n);
   }
 
-  return unique.slice(0, cfg.maxFrames);
+  return times;
 }
 
 function extractFrames(clip) {
@@ -208,16 +204,22 @@ async function askGemini(clip, sampled) {
 `Je analyseert beelden van een Eufy-videodeurbel bij een voordeur.
 De beelden staan chronologisch en komen uit één bewegingsopname.
 
-Beschrijf in het Nederlands feitelijk wat er gedurende de opname gebeurt.
-Let bijvoorbeeld op:
-- iemand die aankomt of wegloopt;
-- aanbellen of voor de deur wachten als dit echt zichtbaar is;
+Beschrijf in het Nederlands feitelijk het hele verloop van de opname, van begin tot einde.
+De beelden zijn een selectie uit de volledige video; belangrijke handelingen kunnen tussen twee beelden plaatsvinden.
+Let specifiek op:
+- iemand die aankomt, een deur opent, naar binnen of buiten loopt of vertrekt;
+- handelingen bij de deur, bijvoorbeeld bukken, een klink/handgreep bedienen en een deur die open- of dichtgaat;
+- aanbellen of voor de deur wachten, maar alleen als dat echt zichtbaar is;
 - pakketjes of voorwerpen die worden gedragen, neergezet of meegenomen;
-- meerdere personen;
-- dieren of voertuigen als die relevant zijn.
+- meerdere personen, dieren of voertuigen als die relevant zijn.
 
+Maak onderscheid tussen 'iemand gaat naar binnen', 'iemand gaat naar buiten'
+en 'iemand verdwijnt uit beeld'. Noem de richting alleen als de beelden dit ondersteunen.
+Als iemand bij een deur vooroverbuigt, concludeer dan niet automatisch dat diegene de deur opent:
+beschrijf het openen of naar binnen gaan alleen als het verloop daadwerkelijk zichtbaar is.
+Gebruik geen specifieke locatie zoals 'traphuis' tenzij die uit de beelden blijkt.
 Identificeer geen personen en doe geen aannames over intenties, emoties of identiteit.
-Beschrijf alleen wat daadwerkelijk zichtbaar is.
+Vul ontbrekende tussenmomenten niet in. Beschrijf alleen wat zichtbaar is en benoem onzekerheid.
 
 Geef uitsluitend JSON met exact deze velden:
 {
