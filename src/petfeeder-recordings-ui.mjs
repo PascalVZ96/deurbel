@@ -14,8 +14,9 @@ const injection = String.raw`
 #pfRecordings .pf-rec-actions button:hover,#pfRecordings .pf-rec-actions a:hover,#pfRecordings .pf-rec-item button:hover{background:#22374d}
 #pfRecordings .pf-rec-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
 #pfRecordings .pf-rec-item{border:1px solid #293849;background:#111a24;border-radius:13px;overflow:hidden;min-width:0}
-#pfRecordings .pf-rec-image{height:126px;background:#080e13;display:flex;align-items:center;justify-content:center;color:#8292a4;font-size:.78rem;overflow:hidden}
+#pfRecordings .pf-rec-image{position:relative;height:126px;background:#080e13;display:flex;align-items:center;justify-content:center;color:#8292a4;font-size:.78rem;overflow:hidden}
 #pfRecordings .pf-rec-image img{width:100%;height:100%;object-fit:cover}
+#pfRecordings .pf-rec-image .pf-rec-placeholder{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
 #pfRecordings .pf-rec-details{padding:12px;display:flex;flex-direction:column;gap:7px}
 #pfRecordings .pf-rec-details strong{font-size:.9rem}
 #pfRecordings .pf-rec-details small{font-size:.75rem;color:#a7b6c7}
@@ -96,11 +97,19 @@ const injection = String.raw`
         card.className = 'pf-rec-item';
         const frame = document.createElement('div');
         frame.className = 'pf-rec-image';
-        frame.textContent = 'Momentopname';
+        const placeholder = document.createElement('span');
+        placeholder.className = 'pf-rec-placeholder';
+        placeholder.textContent = 'Momentopname laden…';
         const img = document.createElement('img');
         img.alt = 'Pet Feeder-opname';
         img.loading = 'lazy';
-        img.addEventListener('load', () => { frame.textContent = ''; frame.appendChild(img); });
+        img.addEventListener('load', () => { placeholder.remove(); });
+        img.addEventListener('error', () => {
+          img.remove();
+          placeholder.textContent = 'Momentopname niet beschikbaar';
+        });
+        // Insert before assigning src: lazy-loaded detached images may never load.
+        frame.replaceChildren(img, placeholder);
         img.src = item.thumbUrl;
         const content = document.createElement('div');
         content.className = 'pf-rec-details';
