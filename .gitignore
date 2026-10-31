@@ -9,3 +9,9 @@
 recordings/
 data/
 node_modules/
+
+# Lokale camera-testdata en tijdelijke installatiebestanden
+data-test/
+frigate-petfeeder/
+petfeeder_opnames_upgrade/
+/install.sh
