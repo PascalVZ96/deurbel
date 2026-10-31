@@ -1551,6 +1551,39 @@ const server = http.createServer(async (req,res) => {
     return;
   }
 
+  // Authenticated single-frame snapshot for the LSC overview card.
+  // The LSC proxy can grab one RTSP frame without leaving a continuous viewer running.
+  if (req.method === 'GET' && url.pathname === '/api/lsc/snapshot.jpg') {
+    const sources = [
+      LSC + '/snapshot.jpg',
+      FRIGATE + '/api/lsc/latest.jpg?timestamp=0'
+    ];
+    for (const source of sources) {
+      try {
+        const response = await fetch(source, {
+          cache:'no-store',
+          signal:AbortSignal.timeout(11500)
+        });
+        if (!response.ok) continue;
+        const jpg = Buffer.from(await response.arrayBuffer());
+        if (jpg.length < 128 || jpg[0] !== 0xff || jpg[1] !== 0xd8) continue;
+        res.writeHead(200, {
+          'Content-Type':'image/jpeg',
+          'Content-Length':jpg.length,
+          'Cache-Control':'no-store, no-cache, must-revalidate'
+        });
+        res.end(jpg);
+        return;
+      } catch {}
+    }
+    res.writeHead(503, {
+      'Content-Type':'text/plain; charset=utf-8',
+      'Cache-Control':'no-store'
+    });
+    res.end('Nog geen LSC-momentopname beschikbaar');
+    return;
+  }
+
   // Authenticated still image for the overview; prefer Frigate and fall back to local proxy.
   if (req.method === 'GET' && url.pathname === '/api/petfeeder/snapshot.jpg') {
     const sources = [
