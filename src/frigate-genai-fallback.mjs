@@ -905,9 +905,10 @@ function candidate(reviews){
     .filter(review=>{
       if(!review?.id)return false;
       if(cfg.petfeederOnly && review.camera !== 'petfeeder') return false;
-      if(review.camera === 'petfeeder' &&
-         !Array.isArray(review?.data?.objects) &&
-         !Array.isArray(review?.objects)) return false;
+      if(review.camera === 'petfeeder') {
+        const detected = review?.data?.objects ?? review?.objects ?? [];
+        if (!Array.isArray(detected) || detected.length === 0) return false;
+      }
 
       /*
        * LSC: Gemini-fallback alleen voor personen.
