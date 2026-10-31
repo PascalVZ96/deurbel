@@ -15,6 +15,8 @@ const cfg = {
 
 const stateFile = path.join(cfg.dataDir, 'eufy-ai.json');
 const workDir = path.join(cfg.dataDir, 'eufy-ai-work');
+const manualRequestFile = path.join(cfg.dataDir, 'eufy-ai-manual-request.json');
+const manualResultFile = path.join(cfg.dataDir, 'eufy-ai-manual-result.json');
 
 fs.mkdirSync(cfg.dataDir, { recursive:true });
 fs.mkdirSync(workDir, { recursive:true });
@@ -363,6 +365,72 @@ async function analyze(clip) {
   }
 }
 
+
+function writeManualResult(result) {
+  const tmp = manualResultFile + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(result,null,2));
+  fs.renameSync(tmp,manualResultFile);
+}
+
+// Deliberately separate from automatic detection of fresh recordings.
+// One pre-existing HomeBase clip can be analyzed on explicit request only.
+async function analyzeManualRequest(clips) {
+  if (!fs.existsSync(manualRequestFile)) return false;
+
+  let request;
+  try {
+    request = JSON.parse(fs.readFileSync(manualRequestFile,'utf8'));
+  } catch (error) {
+    console.warn('[eufy-ai] Handmatige aanvraag ongeldig: ' + error.message);
+    try { fs.unlinkSync(manualRequestFile); } catch {}
+    writeManualResult({ok:false,error:'Ongeldige handmatige aanvraag.'});
+    return true;
+  }
+
+  const name = String(request?.file || '');
+  const result = {
+    file:name,
+    requestedAt:request?.requestedAt || null,
+    processedAt:new Date().toISOString(),
+    ok:false, status:'rejected', title:null, error:null
+  };
+
+  // Consume the request BEFORE any network call. A restart must never
+  // send the same historical clip again automatically.
+  try { fs.unlinkSync(manualRequestFile); } catch {}
+
+  const allowedName = /^motion_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_eufy-original[.]mp4$/i.test(name);
+  const clip = allowedName ? clips.find(item => item.name === name) : null;
+  const previous = state.items[name];
+
+  if (!clip) {
+    result.error='Opname niet gevonden of ongeldige bestandsnaam.';
+  } else if (previous?.status === 'done') {
+    result.ok=true;
+    result.status='already-done';
+    result.title=previous.title || null;
+  } else if (Number(state.apiCallsCount || 0) >= cfg.maxPerDay) {
+    result.error='Daglimiet voor Gemini bereikt. Vraag later opnieuw aan.';
+  } else if (Number(previous?.attempts || 0) >= 3) {
+    result.error='Deze opname heeft al drie mislukte pogingen gehad.';
+  } else {
+    console.log('[eufy-ai] Eenmalige handmatige analyse aangevraagd: '+name);
+    writeManualResult({...result,status:'processing'});
+    await analyze(clip);
+    const analyzed = state.items[name];
+    result.ok = analyzed?.status === 'done';
+    result.status = analyzed?.status || 'unknown';
+    result.title = result.ok ? analyzed.title || null : null;
+    result.error = result.ok ? null : analyzed?.error || 'Analyse niet geslaagd';
+  }
+
+  result.processedAt = new Date().toISOString();
+  writeManualResult(result);
+  console.log('[eufy-ai] Handmatige aanvraag '+(result.ok ? 'afgerond' : 'niet geslaagd')+
+    ': '+name+(result.error ? ' · '+result.error : ''));
+  return true;
+}
+
 async function tick() {
   if (busy) return;
   busy = true;
@@ -409,6 +477,9 @@ async function tick() {
       state.apiCallsCount = 0;
       saveState();
     }
+    // Manual recovery gets priority over the normal fresh-clip queue.
+    // It still consumes the same per-camera per-day Gemini quota.
+    if (await analyzeManualRequest(clips)) return;
     if (Number(state.apiCallsCount || 0) >= cfg.maxPerDay) return;
 
     const candidate = clips.find(clip => {
