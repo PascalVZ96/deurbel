@@ -318,6 +318,9 @@ async function analyze(clip) {
 
   try {
     sampled = extractFrames(clip);
+    // Reserve the API attempt before sending images; even failed calls count.
+    state.apiCallsCount = Number(state.apiCallsCount || 0) + 1;
+    saveState();
     const ai = await askGemini(clip, sampled);
 
     const jpg = clip.name.replace(/[.]mp4$/i, '.jpg');
@@ -401,10 +404,12 @@ async function tick() {
     const now = Date.now();
     const baseline = new Date(state.activationBaselineAt).getTime();
     const day = new Date().toISOString().slice(0,10);
-    const attemptsToday = Object.values(state.items).filter(item =>
-      String(item?.lastAttemptAt || '').startsWith(day)
-    ).length;
-    if (attemptsToday >= cfg.maxPerDay) return;
+    if (state.apiCallsDay !== day) {
+      state.apiCallsDay = day;
+      state.apiCallsCount = 0;
+      saveState();
+    }
+    if (Number(state.apiCallsCount || 0) >= cfg.maxPerDay) return;
 
     const candidate = clips.find(clip => {
       // A recording imported later with an old modification time is also skipped.
