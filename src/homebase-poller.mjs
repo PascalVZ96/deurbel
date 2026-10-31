@@ -17,6 +17,8 @@ const C = {
 
 const stateFile = path.join(C.data, 'homebase-poller.json');
 const statusFile = path.join(C.data, 'homebase-status.json');
+const recoveryRequestFile = path.join(C.data, 'homebase-recovery-request.json');
+const recoveryResultFile = path.join(C.data, 'homebase-recovery-result.json');
 const processStartedAt = new Date().toISOString();
 
 let ws = null;
@@ -344,6 +346,67 @@ async function importChanged(latest, delta) {
   return lastImportedFile;
 }
 
+// Explicit one-time recovery of a single minute from HomeBase. Unlike the
+// automatic cursor, this never changes eventCount/token or replays a whole day.
+async function recoverRequestedMinute() {
+  if (!fs.existsSync(recoveryRequestFile)) return;
+
+  let requested;
+  try {
+    requested = JSON.parse(fs.readFileSync(recoveryRequestFile, 'utf8'));
+  } catch (error) {
+    console.warn('[homebase] Ongeldige herstelopdracht: ' + error.message);
+    try { fs.unlinkSync(recoveryRequestFile); } catch {}
+    return;
+  }
+
+  const minute = String(requested?.minute || '');
+  if (!/^[0-9]{12}$/.test(minute)) {
+    console.warn('[homebase] Herstelopdracht: ongeldige minuut.');
+    try { fs.unlinkSync(recoveryRequestFile); } catch {}
+    return;
+  }
+  const result = { minute, attemptedAt:new Date().toISOString(), files:[], ok:false, error:null };
+  try {
+    if (!await securityOn()) {
+      throw new Error('Deurbelbewaking staat uit. Schakel eerst Deurbel bewaken in.');
+    }
+    const startDate = minute.slice(0,8);
+    const found = recordsFromDatabase(
+      await queryByDate(startDate,nextDay(startDate)),null,null
+    ).filter(record => record.token.startsWith(minute)).slice(0,5);
+
+    if (!found.length) {
+      throw new Error('Geen HomeBase-records voor ' + minute +
+        '. De Eufy-app kan ook cloud-opnames tonen die niet lokaal beschikbaar zijn.');
+    }
+
+    for (const record of found) {
+      const file = await importRecord(record);
+      result.files.push(file);
+    }
+    result.ok = result.files.length > 0;
+    if (result.ok) {
+      status.lastImportAt = new Date().toISOString();
+      status.lastImportedFile = result.files[result.files.length - 1];
+      writeStatus(true);
+    }
+    console.log('[homebase] Gerichte herstelactie ' + minute + ': ' +
+      result.files.join(', '));
+  } catch (error) {
+    result.error = error.message;
+    console.warn('[homebase] Herstelactie ' + minute + ' mislukt: ' + error.message);
+  } finally {
+    try {
+      fs.writeFileSync(recoveryResultFile + '.tmp', JSON.stringify(result,null,2));
+      fs.renameSync(recoveryResultFile + '.tmp', recoveryResultFile);
+    } catch (error) {
+      console.warn('[homebase] Herstelresultaat niet opgeslagen: '+error.message);
+    }
+    try { fs.unlinkSync(recoveryRequestFile); } catch {}
+  }
+}
+
 function stopActive(reason) {
   if (query) {
     const current = query;
@@ -390,6 +453,9 @@ async function poll() {
   running = true;
   status.lastCheckAt = new Date().toISOString();
   try {
+    // Process a requested single-minute recovery exclusively, using the
+    // existing HomeBase WebSocket; normal polling remains sequential.
+    await recoverRequestedMinute();
     const latest = latestForDoorbell(await queryLatest());
     if (!latest) throw new Error('Deurbel ontbreekt in database query latest');
 
