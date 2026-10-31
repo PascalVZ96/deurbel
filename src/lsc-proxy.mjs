@@ -30,6 +30,74 @@ let idleTimer = null;
 let jpegPending = Buffer.alloc(0);
 let lastFrame = null;
 
+// Produce one JPEG when no browser is watching. The stream stays in standby.
+let snapshotCapture = null;
+function captureStill() {
+  if (lastFrame && state.lastFrameAt && Date.now() - state.lastFrameAt < 60000) {
+    return Promise.resolve(lastFrame);
+  }
+  if (!config.rtspUrl) return Promise.resolve(null);
+  if (snapshotCapture) return snapshotCapture;
+
+  const request = new Promise(resolve => {
+    let child;
+    try {
+      child = spawn('/usr/bin/ffmpeg', [
+        '-hide_banner', '-loglevel', 'error',
+        '-rtsp_transport', 'tcp',
+        '-i', config.rtspUrl,
+        '-map', '0:v:0', '-an', '-frames:v', '1',
+        '-vf', 'scale=960:-2', '-q:v', '5',
+        '-f', 'image2pipe', '-vcodec', 'mjpeg', 'pipe:1'
+      ], { stdio:['ignore', 'pipe', 'ignore'] });
+    } catch {
+      resolve(null);
+      return;
+    }
+
+    const chunks = [];
+    let length = 0;
+    let done = false;
+    const timer = setTimeout(() => { try { child.kill('SIGKILL'); } catch {} }, 9000);
+
+    function finish(frame) {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      if (frame) {
+        lastFrame = frame;
+        state.lastFrameAt = Date.now();
+      }
+      resolve(frame);
+    }
+
+    child.stdout.on('data', chunk => {
+      length += chunk.length;
+      if (length > 4 * 1024 * 1024) {
+        try { child.kill('SIGKILL'); } catch {}
+        return;
+      }
+      chunks.push(chunk);
+    });
+    child.on('error', () => finish(null));
+    child.on('close', code => {
+      if (code !== 0 || length < 128 || length > 4 * 1024 * 1024) {
+        finish(null);
+        return;
+      }
+      const jpeg = Buffer.concat(chunks);
+      const start = jpeg.indexOf(Buffer.from([0xff, 0xd8]));
+      const end = jpeg.lastIndexOf(Buffer.from([0xff, 0xd9]));
+      finish(start >= 0 && end > start ? jpeg.subarray(start, end + 2) : null);
+    });
+  });
+  snapshotCapture = request;
+  void request.finally(() => {
+    if (snapshotCapture === request) snapshotCapture = null;
+  });
+  return request;
+}
+
 const state = {
   configured: Boolean(config.rtspUrl),
   active: false,
@@ -329,18 +397,25 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'GET' && url.pathname === '/snapshot.jpg') {
-    if (!lastFrame) {
+    void captureStill().then(frame => {
+      if (res.destroyed) return;
+      if (!frame) {
+        res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end('Nog geen frame beschikbaar');
+        return;
+      }
+      res.writeHead(200, {
+        'Content-Type': 'image/jpeg',
+        'Content-Length': frame.length,
+        'Cache-Control': 'no-store',
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end(frame);
+    }).catch(() => {
+      if (res.destroyed) return;
       res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
-      res.end('Nog geen frame beschikbaar');
-      return;
-    }
-    res.writeHead(200, {
-      'Content-Type': 'image/jpeg',
-      'Content-Length': lastFrame.length,
-      'Cache-Control': 'no-store',
-      'Access-Control-Allow-Origin': '*',
+      res.end('Momentopname niet beschikbaar');
     });
-    res.end(lastFrame);
     return;
   }
 
