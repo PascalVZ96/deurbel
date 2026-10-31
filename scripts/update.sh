@@ -48,14 +48,35 @@ try:
     e=c["environment"]
     required={"DASHBOARD_INTERNAL_PORT":"8191",
       "VIEWER_PORT":"8192", "LSC_PROXY_PORT":"8193",
-      "PETFEEDER_PROXY_PORT":"8194",
-      "EUFY_AI_ENABLED":"0", "FRIGATE_FALLBACK_ENABLED":"0"}
+      "PETFEEDER_PROXY_PORT":"8194"}
     web=str(e.get("WEB_PORT"))
     if web not in ("8090","8190"):
         raise ValueError("WEB_PORT moet 8090 of 8190 zijn")
     for key,expected in required.items():
         if str(e.get(key))!=expected:
             raise ValueError(key+" moet "+expected+" zijn")
+    for setting in ("EUFY_AI_ENABLED","FRIGATE_FALLBACK_ENABLED"):
+        flag=str(e.get(setting,"0"))
+        if flag not in ("0","1"):
+            raise ValueError(setting+" moet 0 of 1 zijn")
+    ai_enabled=(str(e.get("EUFY_AI_ENABLED"))=="1" or
+                str(e.get("FRIGATE_FALLBACK_ENABLED"))=="1")
+    if ai_enabled:
+        key=str(e.get("GEMINI_API_KEY") or "").strip()
+        if not key:
+            raise ValueError("Gemini API-sleutel ontbreekt")
+        if key != str(e.get("GEMINI_API_KEY") or ""):
+            raise ValueError("Gemini API-sleutel bevat spaties")
+        if str(e.get("FRIGATE_FALLBACK_ENABLED"))=="1":
+            if str(e.get("FRIGATE_FALLBACK_PETFEEDER_ONLY"))!="1":
+                raise ValueError("Eerst alleen Pet Feeder Gemini-fallback inschakelen")
+        for num in ("EUFY_AI_MAX_PER_DAY","FRIGATE_FALLBACK_MAX_PER_DAY"):
+            try:
+                v=int(str(e.get(num,"")))
+            except ValueError:
+                raise ValueError(num+" ontbreekt of is ongeldig")
+            if not 1 <= v <= 10:
+                raise ValueError(num+" moet tussen 1 en 10 liggen")
     notify=str(e.get("NOTIFY_ENABLED","0"))
     if notify not in ("0","1"):
         raise ValueError("NOTIFY_ENABLED moet 0 of 1 zijn")
