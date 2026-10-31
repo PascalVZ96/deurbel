@@ -190,12 +190,35 @@ const overviewPolishInjection = String.raw`
 <script id="overview-polish-script">
 (() => {
   const sources = [
-    { card:0, source:'eufy', label:'Laatste momentopname' },
+    { card:0, source:'eufy', label:'Laatste opnamefoto' },
     { card:1, source:'lsc', alternates:['localcar'], label:'Laatste momentopname' },
     { card:2, source:'petfeeder', label:'Actuele momentopname' }
   ];
 
   const cards = [...document.querySelectorAll('#cameraOverview .camera-overview-card')];
+  let eufyRecordingThumbnail = '';
+
+  // Eufy snapshots are available even when AI analysis is disabled.
+  // Only read existing recording JPGs: never wake the battery-powered doorbell.
+  async function refreshEufyRecordingThumbnail(){
+    try {
+      const response = await fetch('/api/recordings', {
+        cache:'no-store',
+        signal:AbortSignal.timeout(7000)
+      });
+      if(!response.ok) throw new Error('HTTP '+response.status);
+      const payload = await response.json();
+      const recordings = Array.isArray(payload.recordings) ? payload.recordings : [];
+      const latest = recordings.find(item =>
+        typeof item.thumbnailUrl === 'string' &&
+        /^\/recordings\/motion_[A-Za-z0-9_-]+\.jpg$/.test(item.thumbnailUrl)
+      );
+      eufyRecordingThumbnail = latest?.thumbnailUrl || '';
+    } catch(e) {
+      console.warn('[overview] Eufy-opnamefoto:', e.message);
+    }
+    refreshSnapshots();
+  }
 
   function ensureSnapshots(){
     for(const config of sources){
@@ -226,7 +249,9 @@ const overviewPolishInjection = String.raw`
     const current = box.dataset.thumbnail || '';
     const wanted = config.source === 'petfeeder'
       ? '/api/petfeeder/snapshot.jpg?tick=' + Math.floor(Date.now() / 30000)
-      : (item?.thumbnailUrl || '');
+      : config.source === 'lsc'
+        ? '/api/lsc/snapshot.jpg?tick=' + Math.floor(Date.now() / 60000)
+        : (eufyRecordingThumbnail || item?.thumbnailUrl || '');
     if(current === wanted) return;
     box.dataset.thumbnail = wanted;
 
@@ -251,14 +276,15 @@ const overviewPolishInjection = String.raw`
 
     const img = document.createElement('img');
     img.alt = 'Laatste momentopname';
-    img.loading = 'lazy';
+    img.loading = 'eager';
     img.addEventListener('load', () => empty.remove(), {once:true});
     img.addEventListener('error', () => {
       img.remove();
       empty.textContent = 'Momentopname niet beschikbaar';
     }, {once:true});
-    img.src = wanted;
+    // Place in DOM before assigning src so load fires reliably.
     box.prepend(img);
+    img.src = wanted;
   }
 
   function refreshSnapshots(){
@@ -268,6 +294,10 @@ const overviewPolishInjection = String.raw`
 
   ensureSnapshots();
   refreshSnapshots();
+  refreshEufyRecordingThumbnail();
+  setInterval(() => {
+    if(!document.hidden) refreshEufyRecordingThumbnail();
+  }, 60000);
 
   if(typeof renderAiHistory === 'function'){
     const previousRenderAiHistory = renderAiHistory;
