@@ -322,17 +322,23 @@ async function getPetFeederAiStatus() {
     });
 
     const latest = reviews[0] || null;
-    // Native object detection remains visible even without Gemini metadata.
-    const selected = described ||
-      reviews.find(review => frigateReviewObjects(review).length > 0) || null;
+    // Show the latest local detection, even if an older event has a Gemini description.
+    const selected = reviews.find(review => {
+      if (frigateReviewObjects(review).length) return true;
+      const info = aiMetadataForReview(review);
+      return Boolean(info.title || info.scene || info.shortSummary || info.short_summary);
+    }) || null;
     const objects = frigateReviewObjects(selected);
     const metadata = aiMetadataForReview(selected);
+    const hasDescription = Boolean(
+      metadata.title || metadata.scene || metadata.shortSummary || metadata.short_summary
+    );
 
     return {
       frigateReachable:true,
       aiAvailable:Boolean(selected),
-      descriptionAvailable:Boolean(described),
-      detectionSource:described ? 'description' : 'frigate-local',
+      descriptionAvailable:hasDescription,
+      detectionSource:hasDescription ? 'description' : 'frigate-local',
       reviewCount:reviews.length,
       latestReviewId:latest?.id || null,
 
@@ -360,7 +366,7 @@ async function getPetFeederAiStatus() {
 
       scene:
         metadata.scene ||
-        (objects.length && !described
+        (objects.length && !hasDescription
           ? 'Lokale objectdetectie. Een uitgebreide AI-beschrijving vereist een apart ingeschakelde Gemini-integratie.'
           : null),
 
