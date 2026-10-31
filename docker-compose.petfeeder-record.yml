@@ -1,0 +1,7 @@
+services:
+  frigate:
+    # Oude Frigate-config NIET overschrijven: aparte nieuwe testconfig.
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./frigate-petfeeder:/config
+      - /mnt/security/frigate:/media/frigate

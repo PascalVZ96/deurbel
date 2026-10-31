@@ -1304,7 +1304,7 @@ async function proxyLscStream(req, res) {
 async function proxyPetFeederStream(req, res) {
   try {
     const response = await fetch(
-      FRIGATE + '/api/petfeeder',
+      PETFEEDER + '/stream.mjpg',
       { cache:'no-store' }
     );
 
@@ -1341,7 +1341,7 @@ async function proxyPetFeederStream(req, res) {
 
   } catch (error) {
     console.warn(
-      `[petfeeder-dashboard] Frigate streamfout: ${error.message}`
+      `[petfeeder-dashboard] Pet Feeder streamfout: ${error.message}`
     );
 
     if (!res.headersSent) {
@@ -1527,60 +1527,161 @@ const server = http.createServer(async (req,res) => {
 
   if (req.method === 'GET' && url.pathname === '/api/petfeeder/status') {
     try {
-      const response = await fetch(
-        FRIGATE + '/api/stats',
-        { cache:'no-store' }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Frigate HTTP ${response.status}`);
-      }
-
-      const stats = await response.json();
-
-      const camera =
-        stats?.cameras?.petfeeder || {};
-
-      const cameraFps =
-        Number(camera.camera_fps || 0);
-
-      const processFps =
-        Number(camera.process_fps || 0);
-
-      res.writeHead(200, {
-        'Content-Type':'application/json; charset=utf-8',
-        'Cache-Control':'no-store',
+      const response = await fetch(PETFEEDER + '/api/status', {
+        cache:'no-store'
       });
-
-      res.end(JSON.stringify({
-        configured:true,
-        active:cameraFps > 0,
-        online:cameraFps > 0,
-        clients:null,
-        fps:cameraFps,
-        processFps,
-        source:'frigate',
-        error:null
-      }));
-
+      const body = await response.text();
+      res.writeHead(response.status, {
+        'Content-Type':'application/json; charset=utf-8',
+        'Cache-Control':'no-store'
+      });
+      res.end(body);
     } catch (error) {
       res.writeHead(503, {
-        'Content-Type':'application/json; charset=utf-8',
-        'Cache-Control':'no-store',
+        'Content-Type':'application/json; charset=utf-8'
       });
-
       res.end(JSON.stringify({
         configured:true,
         active:false,
         online:false,
-        clients:null,
         fps:0,
-        processFps:0,
-        source:'frigate',
         error:error.message
       }));
     }
+    return;
+  }
 
+  // Authenticated still image for the overview; prefer Frigate and fall back to local proxy.
+  if (req.method === 'GET' && url.pathname === '/api/petfeeder/snapshot.jpg') {
+    const sources = [
+      FRIGATE + '/api/petfeeder/latest.jpg?timestamp=0',
+      PETFEEDER + '/snapshot.jpg'
+    ];
+    for (const source of sources) {
+      try {
+        const response = await fetch(source, {
+          cache:'no-store',
+          signal:AbortSignal.timeout(4000)
+        });
+        if (!response.ok) continue;
+        const jpg = Buffer.from(await response.arrayBuffer());
+        if (jpg.length < 128 || jpg[0] !== 0xff || jpg[1] !== 0xd8) continue;
+        res.writeHead(200, {
+          'Content-Type':'image/jpeg',
+          'Content-Length':jpg.length,
+          'Cache-Control':'no-store, no-cache, must-revalidate'
+        });
+        res.end(jpg);
+        return;
+      } catch {}
+    }
+    res.writeHead(503, {
+      'Content-Type':'text/plain; charset=utf-8',
+      'Cache-Control':'no-store'
+    });
+    res.end('Nog geen Pet Feeder-momentopname beschikbaar');
+    return;
+  }
+
+  // Pet Feeder activity clips sourced from Frigate; available only through Security Center auth.
+  if (req.method === 'GET' && url.pathname === '/api/petfeeder/recordings/reviews') {
+    try {
+      const upstream = await fetch(FRIGATE + '/api/review?cameras=petfeeder&limit=60', {
+        cache:'no-store',
+        signal:AbortSignal.timeout(10000)
+      });
+      if (!upstream.ok) throw new Error('Frigate HTTP ' + upstream.status);
+      const reviews = await upstream.json();
+      if (!Array.isArray(reviews)) throw new Error('Onverwachte Frigate-respons');
+      const items = reviews
+        .filter(item => item && item.camera === 'petfeeder' && /^[A-Za-z0-9._-]+$/.test(String(item.id || '')))
+        .slice(0,60)
+        .map(item => {
+          const id = String(item.id);
+          return {
+            id,
+            startTime:item.start_time,
+            endTime:item.end_time,
+            severity:item.severity,
+            labels:Array.isArray(item.data?.objects) ? item.data.objects.filter(x => typeof x === 'string').slice(0,3) : [],
+            thumbUrl:'/api/petfeeder/recordings/review/' + encodeURIComponent(id) + '/thumb.webp',
+            videoUrl:'/api/petfeeder/recordings/review/' + encodeURIComponent(id) + '/clip.mp4'
+          };
+        });
+      res.writeHead(200, {
+        'Content-Type':'application/json; charset=utf-8',
+        'Cache-Control':'private, no-store'
+      });
+      res.end(JSON.stringify({items}));
+    } catch (error) {
+      res.writeHead(503, {
+        'Content-Type':'application/json; charset=utf-8',
+        'Cache-Control':'no-store'
+      });
+      res.end(JSON.stringify({items:[],error:error.message}));
+    }
+    return;
+  }
+
+  const petRecordingMatch = url.pathname.match(/^\/api\/petfeeder\/recordings\/review\/([A-Za-z0-9._-]+)\/(clip\.mp4|thumb\.webp)$/);
+  if ((req.method === 'GET' || req.method === 'HEAD') && petRecordingMatch) {
+    const [, reviewId, kind] = petRecordingMatch;
+    try {
+      // Prevent a valid review ID for another camera being served from this endpoint.
+      const check = await fetch(FRIGATE + '/api/review/' + encodeURIComponent(reviewId), {
+        cache:'no-store',
+        signal:AbortSignal.timeout(10000)
+      });
+      if (!check.ok) {
+        res.writeHead(check.status === 404 ? 404 : 502);
+        res.end();
+        return;
+      }
+      const metadata = await check.json();
+      if (metadata?.camera !== 'petfeeder') {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+      const source = kind === 'clip.mp4'
+        ? FRIGATE + '/api/review/' + encodeURIComponent(reviewId) + '/clip.mp4'
+        : FRIGATE + '/clips/review/thumb-petfeeder-' + encodeURIComponent(reviewId) + '.webp';
+      const outgoing = {};
+      if (kind === 'clip.mp4' && req.headers.range) outgoing.Range = req.headers.range;
+      const upstream = await fetch(source, {headers:outgoing,cache:'no-store'});
+      if (!upstream.ok || !upstream.body) {
+        res.writeHead(upstream.status || 502);
+        res.end();
+        return;
+      }
+      const headers = {
+        'Content-Type':upstream.headers.get('content-type') ||
+          (kind === 'clip.mp4' ? 'video/mp4' : 'image/webp'),
+        'Cache-Control':'private, no-store',
+        'X-Content-Type-Options':'nosniff'
+      };
+      for (const field of ['content-length','content-range','accept-ranges']) {
+        const value = upstream.headers.get(field);
+        if (value) headers[field] = value;
+      }
+      res.writeHead(upstream.status,headers);
+      if (req.method === 'HEAD') {
+        res.end();
+        try { await upstream.body.cancel(); } catch {}
+        return;
+      }
+      for await (const chunk of upstream.body) {
+        if (res.destroyed) break;
+        if (!res.write(Buffer.from(chunk))) {
+          await new Promise(resolve => res.once('drain',resolve));
+        }
+      }
+    } catch (error) {
+      console.warn('[petfeeder-recordings] ' + error.message);
+      if (!res.headersSent) res.writeHead(502);
+    } finally {
+      try { res.end(); } catch {}
+    }
     return;
   }
 

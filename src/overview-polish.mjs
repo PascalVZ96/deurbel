@@ -192,7 +192,7 @@ const overviewPolishInjection = String.raw`
   const sources = [
     { card:0, source:'eufy', label:'Laatste momentopname' },
     { card:1, source:'lsc', alternates:['localcar'], label:'Laatste momentopname' },
-    { card:2, source:'petfeeder', label:'Laatste momentopname' }
+    { card:2, source:'petfeeder', label:'Actuele momentopname' }
   ];
 
   const cards = [...document.querySelectorAll('#cameraOverview .camera-overview-card')];
@@ -224,7 +224,9 @@ const overviewPolishInjection = String.raw`
 
     const item = latestFor(config);
     const current = box.dataset.thumbnail || '';
-    const wanted = item?.thumbnailUrl || '';
+    const wanted = config.source === 'petfeeder'
+      ? '/api/petfeeder/snapshot.jpg?tick=' + Math.floor(Date.now() / 30000)
+      : (item?.thumbnailUrl || '');
     if(current === wanted) return;
     box.dataset.thumbnail = wanted;
 

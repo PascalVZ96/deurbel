@@ -1,0 +1,5 @@
+services:
+  deurbel-viewer:
+    volumes:
+      - /mnt/security/deurbel-test:/recordings
+      - ./data-test:/data

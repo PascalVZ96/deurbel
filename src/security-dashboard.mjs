@@ -18,4 +18,5 @@ await import('./manifest-auth-fix.mjs');
 await import('./pwa-diagnostics.mjs');
 await import('./app-notification-center.mjs');
 await import('./spooky-logbook.mjs');
+await import('./petfeeder-recordings-ui.mjs');
 await import('./security-internal.mjs');
