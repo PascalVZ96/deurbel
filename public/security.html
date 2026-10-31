@@ -1483,7 +1483,7 @@
 
           <div class="camera-overview-ai">
             <div class="camera-overview-ai-label">
-              Laatste AI
+              Laatste activiteit
             </div>
 
             <div
@@ -1542,7 +1542,7 @@
 
           <div class="camera-overview-ai">
             <div class="camera-overview-ai-label">
-              Laatste AI
+              Laatste activiteit
             </div>
 
             <div
@@ -1601,7 +1601,7 @@
 
           <div class="camera-overview-ai">
             <div class="camera-overview-ai-label">
-              Laatste AI
+              Laatste activiteit
             </div>
 
             <div
@@ -1685,7 +1685,7 @@
           <h2>Pet Feeder</h2>
           <p>
             Livebeeld van de voerautomaat met lokale Frigate-detectie
-            en Nederlandse Gemini-beschrijvingen.
+            en optionele AI-beschrijvingen.
           </p>
         </div>
 
@@ -1739,7 +1739,7 @@
               </div>
 
               <span class="pf-ai-badge">
-                ✦ Frigate + Gemini
+                ✦ Frigate-detectie
               </span>
 
             </div>
@@ -2629,7 +2629,7 @@ async function loadPetFeederAi(){
         'Wachten tot een kat of persoon bij de voerbak wordt gedetecteerd.';
 
       scene.textContent=
-        'Na afloop van de eerste gebeurtenis maakt Gemini automatisch een Nederlandse beschrijving.';
+        'Frigate herkent objecten lokaal. Een uitgebreide Gemini-beschrijving is optioneel.';
 
       pfEl('pfAiTime').textContent='Tijd: -';
       pfEl('pfAiConfidence').textContent='Zekerheid: -';
@@ -2661,7 +2661,7 @@ async function loadPetFeederAi(){
       'Tijd: ' + pfFormatTime(d.startTime);
 
 
-    const confidence = Number(d.confidence);
+    const confidence = d.confidence === null || d.confidence === undefined ? NaN : Number(d.confidence);
 
     pfEl('pfAiConfidence').textContent=
       'Zekerheid: ' +
@@ -2672,7 +2672,7 @@ async function loadPetFeederAi(){
       );
 
 
-    const threat = Number(d.potentialThreatLevel);
+    const threat = d.potentialThreatLevel === null || d.potentialThreatLevel === undefined ? NaN : Number(d.potentialThreatLevel);
 
     pfEl('pfAiThreat').textContent=
       'Dreiging: ' +
@@ -3052,7 +3052,7 @@ async function loadCameraOverview(){
 
   document.getElementById('camEufyAi').textContent=
     eufyAi?.latest?.title ||
-    'Nog geen AI-gebeurtenis';
+    'HomeBase-opnames beschikbaar · geen AI-beschrijving';
 
 
   /* De proxy draait alleen wanneer een browser livebeeld bekijkt. */
@@ -3062,7 +3062,7 @@ async function loadCameraOverview(){
 
   document.getElementById('camLscAi').textContent=
     lscAi?.title ||
-    'Nog geen AI-gebeurtenis';
+    'Geen recente detectie';
 
 
   updateProxyOverview('camPetStatus',pet);
@@ -3072,7 +3072,9 @@ async function loadCameraOverview(){
 
   document.getElementById('camPetAi').textContent=
     petAi?.title ||
-    'Nog geen AI-gebeurtenis';
+    (petAi?.frigateReachable === false
+      ? 'Frigate niet bereikbaar'
+      : 'Nog geen lokale detectie');
 }
 
 
