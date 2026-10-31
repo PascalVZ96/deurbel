@@ -42,13 +42,13 @@ git merge --ff-only origin/main
 
 # Controleer dat we niet per ongeluk de oude installatie of data raken.
 compose config --format json | python3 -c '
-import json, os, sys
+import json, os, re, sys
 try:
     c=json.load(sys.stdin)["services"]["deurbel-viewer"]
     e=c["environment"]
     required={"DASHBOARD_INTERNAL_PORT":"8191",
       "VIEWER_PORT":"8192", "LSC_PROXY_PORT":"8193",
-      "PETFEEDER_PROXY_PORT":"8194", "NOTIFY_ENABLED":"0",
+      "PETFEEDER_PROXY_PORT":"8194",
       "EUFY_AI_ENABLED":"0", "FRIGATE_FALLBACK_ENABLED":"0"}
     web=str(e.get("WEB_PORT"))
     if web not in ("8090","8190"):
@@ -56,6 +56,13 @@ try:
     for key,expected in required.items():
         if str(e.get(key))!=expected:
             raise ValueError(key+" moet "+expected+" zijn")
+    notify=str(e.get("NOTIFY_ENABLED","0"))
+    if notify not in ("0","1"):
+        raise ValueError("NOTIFY_ENABLED moet 0 of 1 zijn")
+    if notify=="1":
+        topic=str(e.get("NTFY_TOPIC") or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9_-]{16,64}",topic):
+            raise ValueError("Stel eerst een moeilijk te raden NTFY_TOPIC in (16-64 tekens)")
     mounts={v["target"]:v["source"] for v in c["volumes"]}
     if mounts.get("/recordings")!="/mnt/security/deurbel-test":
         raise ValueError("Verkeerde opname-map")

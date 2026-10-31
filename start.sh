@@ -49,6 +49,7 @@ cleanup() {
   echo "[launcher] Container stopt; processen netjes afsluiten."
   [ -n "${AUTH_SUP_PID:-}" ] && kill "$AUTH_SUP_PID" 2>/dev/null || true
   [ -n "${NOTIFY_SUP_PID:-}" ] && kill "$NOTIFY_SUP_PID" 2>/dev/null || true
+  [ -n "${LOCAL_CAR_SUP_PID:-}" ] && kill "$LOCAL_CAR_SUP_PID" 2>/dev/null || true
   [ -n "${GENAI_FALLBACK_SUP_PID:-}" ] && kill "$GENAI_FALLBACK_SUP_PID" 2>/dev/null || true
   [ -n "${BATTERY_SUP_PID:-}" ] && kill "$BATTERY_SUP_PID" 2>/dev/null || true
   [ -n "${HOMEBASE_SUP_PID:-}" ] && kill "$HOMEBASE_SUP_PID" 2>/dev/null || true
@@ -137,9 +138,17 @@ case "${NOTIFY_ENABLED:-1}" in
     supervise "notification-monitor" env DASHBOARD_INTERNAL_URL="http://127.0.0.1:${DASHBOARD_INTERNAL_PORT}" node src/notification-monitor.mjs &
     NOTIFY_SUP_PID=$!
 
-    supervise "local-car-monitor" node src/local-car-monitor.mjs &
-    echo "[launcher] Lokale auto aankomst/vertrek detectie AAN."
-    echo "[launcher] AI-pushmeldingen AAN."
+    case "${NOTIFY_LSC:-1}" in
+      1|true|TRUE|yes|YES|on|ON)
+        supervise "local-car-monitor" node src/local-car-monitor.mjs &
+        LOCAL_CAR_SUP_PID=$!
+        echo "[launcher] Lokale parkeerplaatsdetectie AAN."
+        ;;
+      *)
+        echo "[launcher] Lokale parkeerplaatsdetectie UIT."
+        ;;
+    esac
+    echo "[launcher] Pushmeldingen AAN."
     ;;
   *)
     echo "[launcher] AI-pushmeldingen UIT."

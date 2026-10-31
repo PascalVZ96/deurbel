@@ -361,6 +361,13 @@ async function cycle(){
   try{
     const items=await readItems();
 
+    // A new topic gets a new baseline; do not replay detections from an old topic.
+    if(state.topic !== cfg.topic){
+      state.topic=cfg.topic;
+      state.initialized=false;
+      state.seen={};
+    }
+
     /*
      * Eerste start:
      * bestaande gebeurtenissen alleen onthouden,
