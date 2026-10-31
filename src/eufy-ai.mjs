@@ -10,6 +10,7 @@ const cfg = {
   pollMs: Math.max(5000, Number(process.env.EUFY_AI_POLL_MS || 5000)),
   retryMs: Math.max(60000, Number(process.env.EUFY_AI_RETRY_MS || 900000)),
   maxFrames: Math.max(3, Math.min(8, Number(process.env.EUFY_AI_MAX_FRAMES || 6))),
+  maxPerDay: Math.max(1, Math.min(10, Number(process.env.EUFY_AI_MAX_PER_DAY || 5))),
 };
 
 const stateFile = path.join(cfg.dataDir, 'eufy-ai.json');
@@ -317,6 +318,9 @@ async function analyze(clip) {
 
   try {
     sampled = extractFrames(clip);
+    // Reserve the API attempt before sending images; even failed calls count.
+    state.apiCallsCount = Number(state.apiCallsCount || 0) + 1;
+    saveState();
     const ai = await askGemini(clip, sampled);
 
     const jpg = clip.name.replace(/[.]mp4$/i, '.jpg');
@@ -375,16 +379,12 @@ async function tick() {
 
     const clips = listClips();
 
-    if (!clips.length) {
-      state.lastRunAt = new Date().toISOString();
-      saveState();
-      return;
-    }
-
-    if (!state.initialized) {
-      const newest = clips[clips.length - 1];
-
-      for (const clip of clips.slice(0, -1)) {
+    // First activation creates a baseline of ALL existing clips, including the
+    // latest one. Never upload previously recorded Eufy videos without a
+    // separate, explicit backfill action.
+    if (!state.activationBaselineAt) {
+      state.activationBaselineAt = new Date().toISOString();
+      for (const clip of clips) {
         if (!state.items[clip.name]) {
           state.items[clip.name] = {
             recordingFile:clip.name,
@@ -393,24 +393,32 @@ async function tick() {
           };
         }
       }
-
       state.initialized = true;
       saveState();
-
-      if (!state.items[newest.name]?.status) {
-        await analyze(newest);
-      }
-
+      console.log('[eufy-ai] Bestaande opnames overgeslagen; alleen nieuwe opnames worden geanalyseerd.');
       return;
     }
 
+    if (!clips.length) return;
+
     const now = Date.now();
+    const baseline = new Date(state.activationBaselineAt).getTime();
+    const day = new Date().toISOString().slice(0,10);
+    if (state.apiCallsDay !== day) {
+      state.apiCallsDay = day;
+      state.apiCallsCount = 0;
+      saveState();
+    }
+    if (Number(state.apiCallsCount || 0) >= cfg.maxPerDay) return;
 
     const candidate = clips.find(clip => {
+      // A recording imported later with an old modification time is also skipped.
+      if (!Number.isFinite(baseline) || clip.mtimeMs <= baseline) return false;
       const item = state.items[clip.name];
 
       if (!item) return true;
       if (item.status === 'done' || item.status === 'skipped-existing') return false;
+      if (Number(item.attempts || 0) >= 3) return false;
 
       if (item.status === 'error' && item.nextRetryAt) {
         return new Date(item.nextRetryAt).getTime() <= now;
@@ -434,7 +442,7 @@ async function tick() {
 }
 
 console.log(
-  `[eufy-ai] Actief · model ${cfg.model} · alleen HomeBase eufy-original opnames`
+  `[eufy-ai] Actief · model ${cfg.model} · alleen nieuwe HomeBase-opnames · max ${cfg.maxPerDay} per dag`
 );
 
 await tick();

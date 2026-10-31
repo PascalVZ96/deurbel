@@ -46,6 +46,10 @@ const cfg = {
     )
   ),
 
+  petfeederOnly:/^(1|true|yes|on)$/i.test(
+    String(process.env.FRIGATE_FALLBACK_PETFEEDER_ONLY || '1')
+  ),
+  maxPerDay:Math.max(1,Math.min(10,Number(process.env.FRIGATE_FALLBACK_MAX_PER_DAY || 5))),
   dataDir:process.env.DATA_DIR || '/data',
 };
 
@@ -756,6 +760,9 @@ async function analyze(review){
         clip
       );
 
+    // Count attempted API requests as well as successful descriptions.
+    state.apiCallsCount = Number(state.apiCallsCount || 0) + 1;
+    saveState();
     const ai=
       await askGemini(
         review,
@@ -897,6 +904,11 @@ function candidate(reviews){
   return reviews
     .filter(review=>{
       if(!review?.id)return false;
+      if(cfg.petfeederOnly && review.camera !== 'petfeeder') return false;
+      if(review.camera === 'petfeeder') {
+        const detected = review?.data?.objects ?? review?.objects ?? [];
+        if (!Array.isArray(detected) || detected.length === 0) return false;
+      }
 
       /*
        * LSC: Gemini-fallback alleen voor personen.
@@ -943,7 +955,7 @@ function candidate(reviews){
         return true;
       }
 
-      if(item.status === 'done'){
+      if(item.status === 'done' || item.status === 'skipped-existing'){
         return false;
       }
 
@@ -1017,19 +1029,37 @@ async function cycle(){
       return;
     }
 
-    const [
-      lsc,
-      petfeeder
-    ] = await Promise.all([
-      getReviews('lsc'),
+    const [lsc, petfeeder] = await Promise.all([
+      cfg.petfeederOnly ? Promise.resolve([]) : getReviews('lsc'),
       getReviews('petfeeder')
     ]);
+    const reviews=[...lsc,...petfeeder];
 
-    const review=
-      candidate([
-        ...lsc,
-        ...petfeeder
-      ]);
+    // On first activation, remember existing detections without uploading them.
+    if (!state.activationBaselineAt) {
+      state.activationBaselineAt = new Date().toISOString();
+      for (const review of reviews) {
+        if (!review?.id || state.items[String(review.id)]) continue;
+        state.items[String(review.id)] = {
+          reviewId:String(review.id),
+          camera:review.camera,
+          status:'skipped-existing'
+        };
+      }
+      saveState();
+      console.log('[genai-fallback] Oude Frigate-detecties overgeslagen; alleen nieuwe gebeurtenissen.');
+      return;
+    }
+
+    const day = new Date().toISOString().slice(0,10);
+    if (state.apiCallsDay !== day) {
+      state.apiCallsDay = day;
+      state.apiCallsCount = 0;
+      saveState();
+    }
+    if (Number(state.apiCallsCount || 0) >= cfg.maxPerDay) return;
+
+    const review=candidate(reviews);
 
     state.lastRunAt=
       new Date().toISOString();
@@ -1062,7 +1092,7 @@ async function cycle(){
 
 
 console.log(
-  `[genai-fallback] Actief · ${cfg.model} · fallback na ${cfg.delaySeconds}s · maximaal ${cfg.maxAgeMinutes} min oud`
+  `[genai-fallback] Actief · ${cfg.model} · alleen Pet Feeder=${cfg.petfeederOnly} · max ${cfg.maxPerDay}/dag · max leeftijd ${cfg.maxAgeMinutes} min`
 );
 
 await cycle();
