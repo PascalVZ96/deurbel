@@ -306,9 +306,11 @@ function cleanupFrames(sampled) {
 async function analyze(clip) {
   const old = state.items[clip.name] || {};
   const attempts = Number(old.attempts || 0) + 1;
+  const historic = old.backfill === true || old.status === 'skipped-existing';
 
   state.items[clip.name] = {
     ...old,
+    backfill:historic,
     recordingFile:clip.name,
     createdAt:clip.createdAt,
     status:'processing',
@@ -338,6 +340,10 @@ async function analyze(clip) {
       analyzedAt:new Date().toISOString(),
       status:'done',
       attempts,
+      // Only new imported recordings should create a phone notification.
+      // The explicitly opted-in historical backlog is analyzed silently.
+      notifyEligible:!historic,
+      backfill:historic,
       durationSeconds:Math.round(sampled.duration * 10) / 10,
       frameCount:sampled.frames.length,
       videoUrl:`/recordings/${encodeURIComponent(clip.name)}`,
@@ -498,10 +504,10 @@ async function tick() {
       if (!item) return true;
       if (item.status === 'done') return false;
       if (item.status === 'skipped-existing') return cfg.backfillExisting;
+      if (Number(item.attempts || 0) >= 3) return false;
       if (item.status === 'rate-limited') {
         return new Date(item.nextRetryAt || 0).getTime() <= now;
       }
-      if (Number(item.attempts || 0) >= 3) return false;
       if (item.status === 'error' && item.nextRetryAt) {
         return new Date(item.nextRetryAt).getTime() <= now;
       }
