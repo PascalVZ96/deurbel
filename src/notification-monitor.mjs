@@ -222,13 +222,14 @@ function itemEufy(d){
     source:'eufy',
     id:String(a.recordingFile),
     analyzedAt:a.analyzedAt || null,
+    historic:a.backfill === true,
 
     title:
       clean(a.title,120) ||
       'Nieuwe voordeurgebeurtenis',
 
     message:
-      clean(a.shortSummary || a.scene) ||
+      clean(a.scene || a.shortSummary) ||
       'De Eufy-deurbel heeft een nieuwe gebeurtenis opgenomen.',
 
     threat:Number(
@@ -256,8 +257,7 @@ function eufyCompletedItems(){
   const after=Date.parse(cfg.eufyNotifyStartAt || '');
   return Object.values(data.items || {})
     .filter(item => item?.status === 'done' && item.recordingFile &&
-      // Backfilled historical recordings get descriptions, but not retroactive
-      // push notifications. Only newly completed doorbell events are pushed.
+      // Each new or explicitly opted-in historical description can notify.
       item.notifyEligible === true &&
       Number.isFinite(Date.parse(item.analyzedAt || '')))
     .filter(item => !Number.isFinite(after) ||
@@ -269,7 +269,7 @@ function eufyCompletedItems(){
 
 function prettyTitle(item){
   if(item.source === 'eufy'){
-    return '🚪 Eufy · ' + item.title;
+    return (item.historic ? '🚪 Eufy archief · ' : '🚪 Eufy · ') + item.title;
   }
 
   if(item.source === 'petfeeder'){
