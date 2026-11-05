@@ -526,10 +526,10 @@ async function tick() {
         new Date(item.lastAttemptAt || 0).getTime() < now - cfg.retryMs;
     });
 
-    const newest = eligible.find(clip => {
+    const newest = eligible.filter(clip => {
       const item=state.items[clip.name];
       return item?.backfill !== true && item?.status !== 'skipped-existing';
-    });
+    }).sort((a,b) => b.mtimeMs - a.mtimeMs)[0];
     // An archived clip stays archived after a failed attempt as well.
     const oldestArchive = eligible.find(clip => {
       const item=state.items[clip.name];
