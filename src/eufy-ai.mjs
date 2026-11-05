@@ -12,6 +12,7 @@ const cfg = {
   maxFrames: Math.max(3, Math.min(8, Number(process.env.EUFY_AI_MAX_FRAMES || 6))),
   maxPerDay: Math.max(1, Math.min(10, Number(process.env.EUFY_AI_MAX_PER_DAY || 5))),
   backfillExisting:/^(1|true|yes|on)$/i.test(String(process.env.EUFY_AI_BACKFILL_EXISTING || '0')),
+  backfillMaxPerDay:Math.max(0,Math.min(10,Number(process.env.EUFY_AI_BACKFILL_MAX_PER_DAY || 2))),
   minIntervalMs:Math.max(5000,Number(process.env.EUFY_AI_MIN_INTERVAL_SECONDS || 60)*1000),
 };
 
@@ -328,6 +329,9 @@ async function analyze(clip) {
     sampled = extractFrames(clip);
     // Reserve the API attempt before sending images; even failed calls count.
     state.apiCallsCount = Number(state.apiCallsCount || 0) + 1;
+    if(historic){
+      state.backfillApiCallsCount = Number(state.backfillApiCallsCount || 0) + 1;
+    }
     state.lastApiCallAt = new Date().toISOString();
     saveState();
     const ai = await askGemini(clip, sampled);
@@ -490,6 +494,11 @@ async function tick() {
       state.apiCallsCount = 0;
       saveState();
     }
+    if(state.backfillApiCallsDay !== day){
+      state.backfillApiCallsDay = day;
+      state.backfillApiCallsCount = 0;
+      saveState();
+    }
     // Manual recovery gets priority over the normal fresh-clip queue.
     // It still consumes the same per-camera per-day Gemini quota.
     if (await analyzeManualRequest(clips)) return;
@@ -515,9 +524,14 @@ async function tick() {
         new Date(item.lastAttemptAt || 0).getTime() < now - cfg.retryMs;
     });
 
-    const candidate = eligible.find(clip =>
+    const newest = eligible.find(clip =>
       state.items[clip.name]?.status !== 'skipped-existing'
-    ) || eligible[0];
+    );
+    // Reserve some daily Gemini capacity for new visitors; the historical
+    // backlog may only consume its own smaller daily allowance.
+    const archiveAllowed = Number(state.backfillApiCallsCount || 0) <
+      cfg.backfillMaxPerDay;
+    const candidate = newest || (archiveAllowed ? eligible[0] : null);
 
     if (candidate) await analyze(candidate);
   } catch (error) {
@@ -531,7 +545,7 @@ async function tick() {
 }
 
 console.log(
-  `[eufy-ai] Actief · model ${cfg.model} · nieuwe opnames + historisch archief=${cfg.backfillExisting} · max ${cfg.maxPerDay}/dag`
+  `[eufy-ai] Actief · model ${cfg.model} · nieuwe opnames + historisch archief=${cfg.backfillExisting} · max ${cfg.maxPerDay}/dag · archief max ${cfg.backfillMaxPerDay}/dag`
 );
 
 await tick();
