@@ -524,14 +524,20 @@ async function tick() {
         new Date(item.lastAttemptAt || 0).getTime() < now - cfg.retryMs;
     });
 
-    const newest = eligible.find(clip =>
-      state.items[clip.name]?.status !== 'skipped-existing'
-    );
+    const newest = eligible.find(clip => {
+      const item=state.items[clip.name];
+      return item?.backfill !== true && item?.status !== 'skipped-existing';
+    });
+    // An archived clip stays archived after a failed attempt as well.
+    const oldestArchive = eligible.find(clip => {
+      const item=state.items[clip.name];
+      return item?.backfill === true || item?.status === 'skipped-existing';
+    });
     // Reserve some daily Gemini capacity for new visitors; the historical
     // backlog may only consume its own smaller daily allowance.
     const archiveAllowed = Number(state.backfillApiCallsCount || 0) <
       cfg.backfillMaxPerDay;
-    const candidate = newest || (archiveAllowed ? eligible[0] : null);
+    const candidate = newest || (archiveAllowed ? oldestArchive : null);
 
     if (candidate) await analyze(candidate);
   } catch (error) {
