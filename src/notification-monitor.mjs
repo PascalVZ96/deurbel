@@ -41,6 +41,7 @@ const cfg = {
     'http://127.0.0.1:8091'
   ).replace(/\/+$/,''),
   dataDir: process.env.DATA_DIR || '/data',
+  eufyNotifyStartAt:String(process.env.EUFY_NOTIFY_START_AT || '').trim(),
 };
 
 const stateFile =
@@ -55,13 +56,14 @@ function loadState(){
     );
 
     d.seen ||= {};
-
+    d.seenEufy ||= {};
     return d;
 
   }catch{
     return {
       initialized:false,
       seen:{},
+      seenEufy:{},
       sent:0,
       lastSentAt:null,
       lastError:null
@@ -219,13 +221,15 @@ function itemEufy(d){
   return {
     source:'eufy',
     id:String(a.recordingFile),
+    analyzedAt:a.analyzedAt || null,
+    historic:a.backfill === true,
 
     title:
       clean(a.title,120) ||
       'Nieuwe voordeurgebeurtenis',
 
     message:
-      clean(a.shortSummary || a.scene) ||
+      clean(a.scene || a.shortSummary) ||
       'De Eufy-deurbel heeft een nieuwe gebeurtenis opgenomen.',
 
     threat:Number(
@@ -238,9 +242,34 @@ function itemEufy(d){
   };
 }
 
+// Unlike /api/eufy/ai (which only returns the latest result), this reads
+// ALL completed analyses. Each recording gets a durable deduplication key.
+function eufyCompletedItems(){
+  let data;
+  try{
+    data=JSON.parse(
+      fs.readFileSync(path.join(cfg.dataDir,'eufy-ai.json'),'utf8')
+    );
+  }catch(error){
+    if(error.code === 'ENOENT') return [];
+    throw error;
+  }
+  const after=Date.parse(cfg.eufyNotifyStartAt || '');
+  return Object.values(data.items || {})
+    .filter(item => item?.status === 'done' && item.recordingFile &&
+      // Each new or explicitly opted-in historical description can notify.
+      item.notifyEligible === true &&
+      Number.isFinite(Date.parse(item.analyzedAt || '')))
+    .filter(item => !Number.isFinite(after) ||
+      Date.parse(item.analyzedAt) >= after)
+    .sort((a,b) => Date.parse(a.analyzedAt)-Date.parse(b.analyzedAt))
+    .map(item => itemEufy({available:true, latest:item}))
+    .filter(Boolean);
+}
+
 function prettyTitle(item){
   if(item.source === 'eufy'){
-    return '🚪 Eufy · ' + item.title;
+    return (item.historic ? '🚪 Eufy archief · ' : '🚪 Eufy · ') + item.title;
   }
 
   if(item.source === 'petfeeder'){
@@ -319,8 +348,8 @@ async function readItems(){
 
   if(cfg.eufy){
     jobs.push(
-      getJson('/api/eufy/ai')
-        .then(itemEufy)
+      Promise.resolve()
+        .then(eufyCompletedItems)
         .catch(error=>{
           console.warn(
             `[notify] Eufy: ${error.message}`
@@ -344,6 +373,7 @@ async function readItems(){
   }
 
   return (await Promise.all(jobs))
+    .flat()
     .filter(Boolean);
 }
 
@@ -366,6 +396,8 @@ async function cycle(){
       state.topic=cfg.topic;
       state.initialized=false;
       state.seen={};
+      state.seenEufy={};
+      state.eufyNotifyInitialized=false;
     }
 
     /*
@@ -375,9 +407,17 @@ async function cycle(){
      */
     if(!state.initialized){
       for(const item of items){
-        state.seen[item.source]=item.id;
+        if(item.source === 'eufy'){
+          // Explicit activation timestamp means only completed analyses after
+          // activation qualify. They may have finished before this process
+          // started; preserve them for the next polling cycle.
+          if(!cfg.eufyNotifyStartAt) state.seenEufy[item.id]=item.analyzedAt;
+        }else{
+          state.seen[item.source]=item.id;
+        }
       }
 
+      state.eufyNotifyInitialized=true;
       state.initialized=true;
       state.lastError=null;
       saveState();
@@ -389,9 +429,22 @@ async function cycle(){
       return;
     }
 
+    // Migration: when Eufy notifications are enabled on an existing system,
+    // do not push previously completed descriptions by accident.
+    if(cfg.eufy && !state.eufyNotifyInitialized){
+      if(!cfg.eufyNotifyStartAt){
+        for(const item of items.filter(x=>x.source === 'eufy')){
+          state.seenEufy[item.id]=item.analyzedAt;
+        }
+      }
+      state.eufyNotifyInitialized=true;
+      saveState();
+    }
+
     for(const item of items){
-      if(
-        state.seen[item.source] === item.id
+      if(item.source === 'eufy'
+        ? Boolean(state.seenEufy[item.id])
+        : state.seen[item.source] === item.id
       ){
         continue;
       }
@@ -399,7 +452,11 @@ async function cycle(){
       try{
         await publish(item);
 
-        state.seen[item.source]=item.id;
+        if(item.source === 'eufy'){
+          state.seenEufy[item.id]=item.analyzedAt || new Date().toISOString();
+        }else{
+          state.seen[item.source]=item.id;
+        }
         saveState();
 
       }catch(error){
