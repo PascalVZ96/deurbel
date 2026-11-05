@@ -55,10 +55,22 @@ try:
     for key,expected in required.items():
         if str(e.get(key))!=expected:
             raise ValueError(key+" moet "+expected+" zijn")
-    for setting in ("EUFY_AI_ENABLED","FRIGATE_FALLBACK_ENABLED"):
+    for setting in ("EUFY_AI_ENABLED","FRIGATE_FALLBACK_ENABLED","EUFY_AI_BACKFILL_EXISTING"):
         flag=str(e.get(setting,"0"))
         if flag not in ("0","1"):
             raise ValueError(setting+" moet 0 of 1 zijn")
+    if str(e.get("EUFY_AI_BACKFILL_EXISTING"))=="1":
+        if str(e.get("EUFY_AI_ENABLED"))!="1":
+            raise ValueError("Eufy-archief inhalen vereist EUFY_AI_ENABLED=1")
+        if not re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z",
+                str(e.get("EUFY_NOTIFY_START_AT") or "")):
+            raise ValueError("EUFY_NOTIFY_START_AT moet een UTC ISO-tijdstip zijn")
+    try:
+        interval=int(str(e.get("EUFY_AI_MIN_INTERVAL_SECONDS","60")))
+        if not 5 <= interval <= 3600:
+            raise ValueError("EUFY_AI_MIN_INTERVAL_SECONDS moet 5-3600 zijn")
+    except (TypeError,ValueError):
+        raise ValueError("EUFY_AI_MIN_INTERVAL_SECONDS is ongeldig")
     ai_enabled=(str(e.get("EUFY_AI_ENABLED"))=="1" or
                 str(e.get("FRIGATE_FALLBACK_ENABLED"))=="1")
     if ai_enabled:
