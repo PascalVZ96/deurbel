@@ -256,6 +256,9 @@ function eufyCompletedItems(){
   const after=Date.parse(cfg.eufyNotifyStartAt || '');
   return Object.values(data.items || {})
     .filter(item => item?.status === 'done' && item.recordingFile &&
+      // Backfilled historical recordings get descriptions, but not retroactive
+      // push notifications. Only newly completed doorbell events are pushed.
+      item.notifyEligible === true &&
       Number.isFinite(Date.parse(item.analyzedAt || '')))
     .filter(item => !Number.isFinite(after) ||
       Date.parse(item.analyzedAt) >= after)
