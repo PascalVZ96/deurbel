@@ -33,8 +33,9 @@ settings = {
     "NOTIFY_EUFY": "1",
     "EUFY_AI_ENABLED": "1",
     "EUFY_AI_BACKFILL_EXISTING": "1",
-    "EUFY_AI_MAX_PER_DAY": "5",
-    "EUFY_AI_BACKFILL_MAX_PER_DAY": "2",
+    "EUFY_AI_MAX_PER_DAY": "10",
+    "EUFY_AI_BACKFILL_MAX_PER_DAY": "5",
+    "EUFY_AI_NOTIFY_BACKFILL": "1",
     "EUFY_AI_MIN_INTERVAL_SECONDS": "60",
     "EUFY_NOTIFY_START_AT": started,
 }
@@ -71,7 +72,7 @@ except Exception:
 
 print("Eufy AI: alle beschikbare HomeBase-video's in wachtrij.")
 print("Nieuwe Eufy AI-beschrijvingen: ntfy aan.")
-print("Historische archiefanalyses: max 2 per dag, zonder terugwerkende pushmeldingen.")
-print("Gemini-limiet Eufy: 5 API-aanroepen per UTC-dag, minstens 60 seconden ertussen.")
+print("Historische archiefanalyses: max 5 per dag, met 'Eufy archief' push bij een geslaagde beschrijving.")
+print("Gemini-limiet Eufy: 10 API-aanroepen per UTC-dag, minstens 60 seconden ertussen.")
 print("Bestaande Pet Feeder, ntfy-topic, API-sleutel en opnames zijn behouden.")
 print("Volgende stap: cd ~/deurbel && bash scripts/update.sh")
