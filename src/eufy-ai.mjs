@@ -11,6 +11,8 @@ const cfg = {
   retryMs: Math.max(60000, Number(process.env.EUFY_AI_RETRY_MS || 900000)),
   maxFrames: Math.max(3, Math.min(8, Number(process.env.EUFY_AI_MAX_FRAMES || 6))),
   maxPerDay: Math.max(1, Math.min(10, Number(process.env.EUFY_AI_MAX_PER_DAY || 5))),
+  backfillExisting:/^(1|true|yes|on)$/i.test(String(process.env.EUFY_AI_BACKFILL_EXISTING || '0')),
+  minIntervalMs:Math.max(5000,Number(process.env.EUFY_AI_MIN_INTERVAL_SECONDS || 60)*1000),
 };
 
 const stateFile = path.join(cfg.dataDir, 'eufy-ai.json');
@@ -324,6 +326,7 @@ async function analyze(clip) {
     sampled = extractFrames(clip);
     // Reserve the API attempt before sending images; even failed calls count.
     state.apiCallsCount = Number(state.apiCallsCount || 0) + 1;
+    state.lastApiCallAt = new Date().toISOString();
     saveState();
     const ai = await askGemini(clip, sampled);
 
@@ -354,7 +357,10 @@ async function analyze(clip) {
       ...state.items[clip.name],
       status:'error',
       error:error.message,
-      nextRetryAt:new Date(Date.now() + cfg.retryMs).toISOString(),
+      nextRetryAt:new Date(Date.now() +
+        (/Gemini HTTP 429|rate.?limit|quota/i.test(error.message) ? 4*60*60*1000 : cfg.retryMs)
+      ).toISOString(),
+      status:/Gemini HTTP 429|rate.?limit|quota/i.test(error.message) ? 'rate-limited' : 'error',
     };
 
     state.lastError = error.message;
@@ -472,7 +478,6 @@ async function tick() {
     if (!clips.length) return;
 
     const now = Date.now();
-    const baseline = new Date(state.activationBaselineAt).getTime();
     const day = new Date().toISOString().slice(0,10);
     if (state.apiCallsDay !== day) {
       state.apiCallsDay = day;
@@ -483,27 +488,32 @@ async function tick() {
     // It still consumes the same per-camera per-day Gemini quota.
     if (await analyzeManualRequest(clips)) return;
     if (Number(state.apiCallsCount || 0) >= cfg.maxPerDay) return;
+    if (now - new Date(state.lastApiCallAt || 0).getTime() < cfg.minIntervalMs) return;
 
-    const candidate = clips.find(clip => {
-      // A recording imported later with an old modification time is also skipped.
-      if (!Number.isFinite(baseline) || clip.mtimeMs <= baseline) return false;
+    // Fresh imports take precedence over historical backfill. Files imported
+    // today can have an OLD modification time (HomeBase preserves clip time).
+    // Deduplicate using persistent state, never using the file mtime.
+    const eligible = clips.filter(clip => {
       const item = state.items[clip.name];
-
       if (!item) return true;
-      if (item.status === 'done' || item.status === 'skipped-existing') return false;
+      if (item.status === 'done') return false;
+      if (item.status === 'skipped-existing') return cfg.backfillExisting;
+      if (item.status === 'rate-limited') {
+        return new Date(item.nextRetryAt || 0).getTime() <= now;
+      }
       if (Number(item.attempts || 0) >= 3) return false;
-
       if (item.status === 'error' && item.nextRetryAt) {
         return new Date(item.nextRetryAt).getTime() <= now;
       }
-
       return item.status !== 'processing' ||
         new Date(item.lastAttemptAt || 0).getTime() < now - cfg.retryMs;
     });
 
-    if (candidate) {
-      await analyze(candidate);
-    }
+    const candidate = eligible.find(clip =>
+      state.items[clip.name]?.status !== 'skipped-existing'
+    ) || eligible[0];
+
+    if (candidate) await analyze(candidate);
   } catch (error) {
     state.lastError = error.message;
     state.lastRunAt = new Date().toISOString();
@@ -515,7 +525,7 @@ async function tick() {
 }
 
 console.log(
-  `[eufy-ai] Actief · model ${cfg.model} · alleen nieuwe HomeBase-opnames · max ${cfg.maxPerDay} per dag`
+  `[eufy-ai] Actief · model ${cfg.model} · nieuwe opnames + historisch archief=${cfg.backfillExisting} · max ${cfg.maxPerDay}/dag`
 );
 
 await tick();
