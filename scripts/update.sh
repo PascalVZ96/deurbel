@@ -62,7 +62,7 @@ try:
     if str(e.get("EUFY_AI_BACKFILL_EXISTING"))=="1":
         if str(e.get("EUFY_AI_ENABLED"))!="1":
             raise ValueError("Eufy-archief inhalen vereist EUFY_AI_ENABLED=1")
-        if not re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z",
+        if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z",
                 str(e.get("EUFY_NOTIFY_START_AT") or "")):
             raise ValueError("EUFY_NOTIFY_START_AT moet een UTC ISO-tijdstip zijn")
     try:
