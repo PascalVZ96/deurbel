@@ -37,6 +37,8 @@ settings = {
     "EUFY_AI_ENABLED": "1",
     "EUFY_AI_BACKFILL_EXISTING": "1",
     "EUFY_AI_MAX_PER_DAY": "10",
+    "EUFY_AI_BACKFILL_MAX_PER_DAY": "5",
+    "EUFY_AI_NOTIFY_BACKFILL": "1",
     "EUFY_AI_MIN_INTERVAL_SECONDS": "60",
     "NOTIFY_ENABLED": "1",
     "NOTIFY_EUFY": "1",
@@ -84,6 +86,7 @@ print("Eufy HomeBase-opnames aanwezig:", len(clips))
 print("Al geanalyseerd:", done)
 print("Voor automatische verwerking:", len(clips)-done)
 print("Gemini: alle nieuwe + bestaande Eufy-opnames, maximaal 10 API-aanroepen per UTC-dag.")
-print("ntfy: één nieuwe melding per geslaagde analyse; eerdere meldingen niet herhalen.")
+print("Van die 10 maximaal 5 archiefvideo's; nieuwe opnames krijgen voorrang.")
+print("ntfy: één melding per nieuwe én ingelopen archiefanalyse (archiefmeldingen gemarkeerd).")
 print("Pet Feeder, LSC, opnames en bewaartermijn zijn niet gewijzigd.")
 print("Start nu: cd ~/deurbel && bash scripts/update.sh")
