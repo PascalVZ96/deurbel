@@ -89,6 +89,14 @@ try:
                 raise ValueError(num+" ontbreekt of is ongeldig")
             if not 1 <= v <= 10:
                 raise ValueError(num+" moet tussen 1 en 10 liggen")
+    if str(e.get("EUFY_AI_ENABLED"))=="1" and str(e.get("EUFY_AI_BACKFILL_EXISTING"))=="1":
+        try:
+            backfill=int(str(e.get("EUFY_AI_BACKFILL_MAX_PER_DAY","")))
+            limit=int(str(e.get("EUFY_AI_MAX_PER_DAY","")))
+        except ValueError:
+            raise ValueError("Eufy archieflimiet is ongeldig")
+        if not 0 <= backfill <= limit:
+            raise ValueError("Eufy archieflimiet moet tussen 0 en de daglimiet liggen")
     notify=str(e.get("NOTIFY_ENABLED","0"))
     if notify not in ("0","1"):
         raise ValueError("NOTIFY_ENABLED moet 0 of 1 zijn")
