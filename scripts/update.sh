@@ -55,7 +55,7 @@ try:
     for key,expected in required.items():
         if str(e.get(key))!=expected:
             raise ValueError(key+" moet "+expected+" zijn")
-    for setting in ("EUFY_AI_ENABLED","FRIGATE_FALLBACK_ENABLED","EUFY_AI_BACKFILL_EXISTING"):
+    for setting in ("EUFY_AI_ENABLED","FRIGATE_FALLBACK_ENABLED","EUFY_AI_BACKFILL_EXISTING","EUFY_AI_NOTIFY_BACKFILL"):
         flag=str(e.get(setting,"0"))
         if flag not in ("0","1"):
             raise ValueError(setting+" moet 0 of 1 zijn")
@@ -65,6 +65,15 @@ try:
         if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z",
                 str(e.get("EUFY_NOTIFY_START_AT") or "")):
             raise ValueError("EUFY_NOTIFY_START_AT moet een UTC ISO-tijdstip zijn")
+    if str(e.get("EUFY_AI_NOTIFY_BACKFILL"))=="1" and str(e.get("EUFY_AI_BACKFILL_EXISTING"))!="1":
+        raise ValueError("Eufy archiefmeldingen vereisen EUFY_AI_BACKFILL_EXISTING=1")
+    try:
+        archive_cap=int(str(e.get("EUFY_AI_BACKFILL_MAX_PER_DAY","5")))
+        total_cap=int(str(e.get("EUFY_AI_MAX_PER_DAY","5")))
+        if not 0 <= archive_cap <= total_cap:
+            raise ValueError("EUFY_AI_BACKFILL_MAX_PER_DAY moet 0 t/m EUFY_AI_MAX_PER_DAY zijn")
+    except (TypeError,ValueError):
+        raise ValueError("EUFY_AI_BACKFILL_MAX_PER_DAY is ongeldig of groter dan daglimiet")
     try:
         interval=int(str(e.get("EUFY_AI_MIN_INTERVAL_SECONDS","60")))
         if not 5 <= interval <= 3600:
