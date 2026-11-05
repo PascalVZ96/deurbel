@@ -12,7 +12,8 @@ const cfg = {
   maxFrames: Math.max(3, Math.min(8, Number(process.env.EUFY_AI_MAX_FRAMES || 6))),
   maxPerDay: Math.max(1, Math.min(10, Number(process.env.EUFY_AI_MAX_PER_DAY || 5))),
   backfillExisting:/^(1|true|yes|on)$/i.test(String(process.env.EUFY_AI_BACKFILL_EXISTING || '0')),
-  backfillMaxPerDay:Math.max(0,Math.min(10,Number(process.env.EUFY_AI_BACKFILL_MAX_PER_DAY || 2))),
+  backfillMaxPerDay:Math.max(0,Math.min(10,Number(process.env.EUFY_AI_BACKFILL_MAX_PER_DAY || 5))),
+  notifyBackfill:/^(1|true|yes|on)$/i.test(String(process.env.EUFY_AI_NOTIFY_BACKFILL || '0')),
   minIntervalMs:Math.max(5000,Number(process.env.EUFY_AI_MIN_INTERVAL_SECONDS || 60)*1000),
 };
 
@@ -346,7 +347,7 @@ async function analyze(clip) {
       attempts,
       // Only new imported recordings should create a phone notification.
       // The explicitly opted-in historical backlog is analyzed silently.
-      notifyEligible:!historic,
+      notifyEligible:!historic || cfg.notifyBackfill,
       backfill:historic,
       durationSeconds:Math.round(sampled.duration * 10) / 10,
       frameCount:sampled.frames.length,
@@ -365,12 +366,11 @@ async function analyze(clip) {
   } catch (error) {
     state.items[clip.name] = {
       ...state.items[clip.name],
-      status:'error',
+      status:/Gemini HTTP 429|rate.?limit|quota/i.test(error.message) ? 'rate-limited' : 'error',
       error:error.message,
       nextRetryAt:new Date(Date.now() +
         (/Gemini HTTP 429|rate.?limit|quota/i.test(error.message) ? 4*60*60*1000 : cfg.retryMs)
       ).toISOString(),
-      status:/Gemini HTTP 429|rate.?limit|quota/i.test(error.message) ? 'rate-limited' : 'error',
     };
 
     state.lastError = error.message;
@@ -513,10 +513,12 @@ async function tick() {
       if (!item) return true;
       if (item.status === 'done') return false;
       if (item.status === 'skipped-existing') return cfg.backfillExisting;
-      if (Number(item.attempts || 0) >= 3) return false;
+      // Quota errors remain retryable after the four-hour back-off;
+      // the shared per-day API budget still prevents excessive requests.
       if (item.status === 'rate-limited') {
         return new Date(item.nextRetryAt || 0).getTime() <= now;
       }
+      if (Number(item.attempts || 0) >= 3) return false;
       if (item.status === 'error' && item.nextRetryAt) {
         return new Date(item.nextRetryAt).getTime() <= now;
       }
