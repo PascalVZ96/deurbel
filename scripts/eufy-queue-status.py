@@ -42,3 +42,29 @@ print("Gemini API-aanroepen vandaag (UTC):",used)
 print("Afzonderlijk bevestigde ntfy-berichten:",len(notify.get("seenEufy",{})))
 print("Laatste Gemini-fout:",ai.get("lastError") or "geen")
 print("Laatste ntfy-fout:",notify.get("lastError") or "geen")
+
+# Show what will actually be processed once the scheduled unlimited mode starts.
+env = root / ".env.testports"
+if env.exists():
+    for line in env.read_text(encoding="utf-8").splitlines():
+        if line.startswith("EUFY_AI_UNLIMITED_NEW_FROM="):
+            value = line.split("=",1)[1].strip()
+            try:
+                from datetime import datetime
+                scheduled = datetime.fromisoformat(value)
+                live = datetime.now(timezone.utc) >= scheduled.astimezone(timezone.utc)
+                cutoff = value[:10]
+                waiting_new = sum(1 for clip in clips
+                    if clip.name.startswith("motion_") and clip.name[7:17] >= cutoff
+                    and items.get(clip.name,{}).get("status") != "done")
+                waiting_old = sum(1 for clip in clips
+                    if clip.name.startswith("motion_") and clip.name[7:17] < cutoff
+                    and items.get(clip.name,{}).get("status") != "done")
+                print("Eufy onbeperkt (alleen nieuw) vanaf:", value)
+                print("Omschakeling actief:", "ja" if live else "nee")
+                print("Nieuwe video's vanaf deze datum nog te analyseren:", waiting_new)
+                print("Oude video's die na omschakeling gepauzeerd worden:", waiting_old)
+            except ValueError:
+                print("Eufy-onbeperkt: ongeldige plandatum")
+            break
+
