@@ -15,7 +15,20 @@ const cfg = {
   backfillMaxPerDay:Math.max(0,Math.min(10,Number(process.env.EUFY_AI_BACKFILL_MAX_PER_DAY || 5))),
   notifyBackfill:/^(1|true|yes|on)$/i.test(String(process.env.EUFY_AI_NOTIFY_BACKFILL || '0')),
   minIntervalMs:Math.max(5000,Number(process.env.EUFY_AI_MIN_INTERVAL_SECONDS || 60)*1000),
+  // Explicit future activation in the Europe/Amsterdam timezone.
+  unlimitedNewFrom:String(process.env.EUFY_AI_UNLIMITED_NEW_FROM || '').trim(),
 };
+
+const scheduledStart = cfg.unlimitedNewFrom
+  ? Date.parse(cfg.unlimitedNewFrom)
+  : NaN;
+const scheduledClipDate = cfg.unlimitedNewFrom.slice(0,10);
+// The date and explicit timezone offset are configured by the opt-in helper.
+if (cfg.unlimitedNewFrom &&
+    (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}T00:00:00[+-][0-9]{2}:[0-9]{2}$/.test(cfg.unlimitedNewFrom)
+     || !Number.isFinite(scheduledStart))) {
+  throw new Error('EUFY_AI_UNLIMITED_NEW_FROM moet een lokale middernacht met tijdzone-offset zijn');
+}
 
 const stateFile = path.join(cfg.dataDir, 'eufy-ai.json');
 const workDir = path.join(cfg.dataDir, 'eufy-ai-work');
@@ -50,6 +63,7 @@ function loadState() {
 
 let state = loadState();
 let busy = false;
+let unlimitedStartLogged = false;
 
 function saveState() {
   state.model = cfg.model;
@@ -488,6 +502,12 @@ async function tick() {
     if (!clips.length) return;
 
     const now = Date.now();
+    const unlimitedNewActive = Number.isFinite(scheduledStart) && now >= scheduledStart;
+    if (unlimitedNewActive && !unlimitedStartLogged) {
+      console.log('[eufy-ai] Onbeperkte dagwachtrij actief: alleen Eufy-opnames vanaf ' +
+        scheduledClipDate + ' (Nederlandse tijd); oude archiefwachtrij gepauzeerd.');
+      unlimitedStartLogged = true;
+    }
     const day = new Date().toISOString().slice(0,10);
     if (state.apiCallsDay !== day) {
       state.apiCallsDay = day;
@@ -502,13 +522,23 @@ async function tick() {
     // Manual recovery gets priority over the normal fresh-clip queue.
     // It still consumes the same per-camera per-day Gemini quota.
     if (await analyzeManualRequest(clips)) return;
-    if (Number(state.apiCallsCount || 0) >= cfg.maxPerDay) return;
+    // Before the scheduled midnight: today's existing 10/day and 5/day
+    // archive caps are unchanged. After midnight: NO local daily cap for
+    // recordings made on/after the cutoff; historical videos are excluded.
+    if (!unlimitedNewActive &&
+        Number(state.apiCallsCount || 0) >= cfg.maxPerDay) return;
     if (now - new Date(state.lastApiCallAt || 0).getTime() < cfg.minIntervalMs) return;
 
     // Fresh imports take precedence over historical backfill. Files imported
     // today can have an OLD modification time (HomeBase preserves clip time).
     // Deduplicate using persistent state, never using the file mtime.
     const eligible = clips.filter(clip => {
+      if (unlimitedNewActive) {
+        // HomeBase filename date reflects the actual recording date, unlike
+        // the moment it was imported. Do NOT drain the old archive tomorrow.
+        const clipDate = /^motion_([0-9]{4}-[0-9]{2}-[0-9]{2})_/.exec(clip.name)?.[1];
+        if (!clipDate || clipDate < scheduledClipDate) return false;
+      }
       const item = state.items[clip.name];
       if (!item) return true;
       if (item.status === 'done') return false;
@@ -537,8 +567,8 @@ async function tick() {
     });
     // Reserve some daily Gemini capacity for new visitors; the historical
     // backlog may only consume its own smaller daily allowance.
-    const archiveAllowed = Number(state.backfillApiCallsCount || 0) <
-      cfg.backfillMaxPerDay;
+    const archiveAllowed = !unlimitedNewActive &&
+      Number(state.backfillApiCallsCount || 0) < cfg.backfillMaxPerDay;
     const candidate = newest || (archiveAllowed ? oldestArchive : null);
 
     if (candidate) await analyze(candidate);
@@ -553,7 +583,7 @@ async function tick() {
 }
 
 console.log(
-  `[eufy-ai] Actief · model ${cfg.model} · nieuwe opnames + historisch archief=${cfg.backfillExisting} · max ${cfg.maxPerDay}/dag · archief max ${cfg.backfillMaxPerDay}/dag`
+  `[eufy-ai] Actief · model ${cfg.model} · max ${cfg.maxPerDay}/dag · archief max ${cfg.backfillMaxPerDay}/dag · onbeperkt nieuwe Eufy vanaf ${cfg.unlimitedNewFrom || 'uit'}`
 );
 
 await tick();
