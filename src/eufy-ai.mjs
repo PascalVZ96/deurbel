@@ -25,7 +25,7 @@ const scheduledStart = cfg.unlimitedNewFrom
 const scheduledClipDate = cfg.unlimitedNewFrom.slice(0,10);
 // The date and explicit timezone offset are configured by the opt-in helper.
 if (cfg.unlimitedNewFrom &&
-    (!/^\\d{4}-\\d{2}-\\d{2}T00:00:00[+]01:00$/.test(cfg.unlimitedNewFrom)
+    (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}T00:00:00[+]01:00$/.test(cfg.unlimitedNewFrom)
      || !Number.isFinite(scheduledStart))) {
   throw new Error('EUFY_AI_UNLIMITED_NEW_FROM moet YYYY-MM-DDT00:00:00+01:00 zijn');
 }
@@ -536,7 +536,7 @@ async function tick() {
       if (unlimitedNewActive) {
         // HomeBase filename date reflects the actual recording date, unlike
         // the moment it was imported. Do NOT drain the old archive tomorrow.
-        const clipDate = /^motion_(\\d{4}-\\d{2}-\\d{2})_/.exec(clip.name)?.[1];
+        const clipDate = /^motion_([0-9]{4}-[0-9]{2}-[0-9]{2})_/.exec(clip.name)?.[1];
         if (!clipDate || clipDate < scheduledClipDate) return false;
       }
       const item = state.items[clip.name];
