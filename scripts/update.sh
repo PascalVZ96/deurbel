@@ -67,6 +67,14 @@ try:
             raise ValueError("EUFY_NOTIFY_START_AT moet een UTC ISO-tijdstip zijn")
     if str(e.get("EUFY_AI_NOTIFY_BACKFILL"))=="1" and str(e.get("EUFY_AI_BACKFILL_EXISTING"))!="1":
         raise ValueError("Eufy archiefmeldingen vereisen EUFY_AI_BACKFILL_EXISTING=1")
+    schedule=str(e.get("EUFY_AI_UNLIMITED_NEW_FROM") or "").strip()
+    if schedule:
+        if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T00:00:00[+-][0-9]{2}:[0-9]{2}",schedule):
+            raise ValueError("EUFY_AI_UNLIMITED_NEW_FROM moet een lokale middernacht met tijdzone-offset zijn")
+        from datetime import datetime
+        datetime.fromisoformat(schedule)
+        if str(e.get("EUFY_AI_ENABLED"))!="1":
+            raise ValueError("Geplande onbeperkte Eufy AI vereist EUFY_AI_ENABLED=1")
     try:
         archive_cap=int(str(e.get("EUFY_AI_BACKFILL_MAX_PER_DAY","5")))
         total_cap=int(str(e.get("EUFY_AI_MAX_PER_DAY","5")))
