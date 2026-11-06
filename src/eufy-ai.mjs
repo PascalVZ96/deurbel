@@ -25,9 +25,9 @@ const scheduledStart = cfg.unlimitedNewFrom
 const scheduledClipDate = cfg.unlimitedNewFrom.slice(0,10);
 // The date and explicit timezone offset are configured by the opt-in helper.
 if (cfg.unlimitedNewFrom &&
-    (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}T00:00:00[+]01:00$/.test(cfg.unlimitedNewFrom)
+    (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}T00:00:00[+-][0-9]{2}:[0-9]{2}$/.test(cfg.unlimitedNewFrom)
      || !Number.isFinite(scheduledStart))) {
-  throw new Error('EUFY_AI_UNLIMITED_NEW_FROM moet YYYY-MM-DDT00:00:00+01:00 zijn');
+  throw new Error('EUFY_AI_UNLIMITED_NEW_FROM moet een lokale middernacht met tijdzone-offset zijn');
 }
 
 const stateFile = path.join(cfg.dataDir, 'eufy-ai.json');
